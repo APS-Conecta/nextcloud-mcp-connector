@@ -261,7 +261,9 @@ claude mcp add --transport http nextcloud https://cloud.example.com/exapps/mcp_c
    `/apps/app_api/proxy/mcp_connector/...`, and it answers. It is still not the recommended
    endpoint: its streaming and header behaviour differ from the direct `/exapps/` route, which
    is the one measured and relied on here. The measurement of both paths is in
-   [spike-discovery.md](spike-discovery.md); use `/exapps/mcp_connector/mcp`.
+   [spike-discovery.md](spike-discovery.md); use `/exapps/mcp_connector/mcp`. The one caller
+   that uses the PHP proxy on purpose is Nextcloud's Context Agent, which can only sign its
+   calls as an ExApp: [context-agent.md](context-agent.md).
 2. **No `/exapps/` rule, no connection.** The reverse proxy in front of Nextcloud has to route
    `/exapps/*` to HaRP. Without that rule the installation never even completes its heartbeat,
    let alone serves `/mcp`, and the failure looks like a Nextcloud problem rather than a proxy

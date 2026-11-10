@@ -692,6 +692,71 @@ def test_a_resolved_user_is_never_asked_for_a_bearer() -> None:
     assert verifier.seen == [], "the AUTH-01 path read the Authorization header"
 
 
+# --- the asking user of Nextcloud's Context Agent (gestion-aio#89) -----------------
+#
+# docs/context-agent.md is the contract these two tests hold. The agent sends each MCP call
+# to Nextcloud's AppAPI proxy, signed for the user who asked. Nextcloud authenticates that
+# user and forwards the call here with its own signature for them, so the user in that
+# signature is the whole identity of the call.
+
+#: What the AppAPI proxy puts next to its signature: the AppAPI version and the caller's
+#: address (``ExAppProxyController::buildHeadersWithExclude``).
+PROXIED_HEADERS = {**MCP_HEADERS, "AA-VERSION": "34.0.3", "X-Origin-IP": "172.18.0.7"}
+
+#: A credential a caller can add on its own side: an admin's app password in a static
+#: MCP configuration.
+STATIC_ADMIN = {"Authorization": "Basic " + base64.b64encode(b"admin:static-pw").decode()}
+
+
+def call_tool(
+    client: TestClient, headers: dict[str, str], name: str, arguments: dict[str, Any]
+) -> Any:
+    """One tool call in a fresh session, which is how the Context Agent makes every call."""
+    opened = client.post("/mcp", json=INITIALIZE, headers=headers)
+    session = {**headers, "mcp-session-id": opened.headers.get("mcp-session-id", "")}
+    initialized = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+    client.post("/mcp", json=initialized, headers=session)
+    call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call"}
+    call["params"] = {"name": name, "arguments": arguments}
+    return client.post("/mcp", json=call, headers=session)
+
+
+@respx.mock
+def test_a_proxied_call_runs_as_the_signed_user_whatever_else_it_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The call also carries an admin credential and an argument naming bob: neither counts."""
+    env, _ = with_a_local_store(SERVED_ENV, tmp_path, monkeypatch)
+    # The credential layer of a tool call reads the process environment, as in the container.
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    nextcloud = respx.route(host="nc.test").mock(return_value=httpx.Response(404))
+    headers = {**PROXIED_HEADERS, **STATIC_ADMIN, **appapi_headers(user="alice")}
+
+    with TestClient(entry_exapp.build_exapp_app(env)) as client:
+        response = call_tool(client, headers, "files_list", {"path": "/", "user": "bob"})
+
+    assert response.status_code == 200
+    sent = [call.request for call in nextcloud.calls]
+    assert any(request.url.path.startswith("/remote.php/dav/files/alice/") for request in sent)
+    for request in sent:
+        assert request.headers["authorization-app-api"] == headers["AUTHORIZATION-APP-API"]
+        assert "authorization" not in request.headers
+
+
+@respx.mock
+def test_a_proxied_call_without_a_user_is_refused() -> None:
+    """An admin credential and an argument naming alice cannot stand in for the signed user."""
+    nextcloud = respx.route(host="nc.test").mock(return_value=httpx.Response(404))
+    headers = {**PROXIED_HEADERS, **STATIC_ADMIN, **appapi_headers(user="")}
+
+    with TestClient(entry_exapp.build_exapp_app(SERVED_ENV)) as client:
+        response = call_tool(client, headers, "files_list", {"path": "/", "user": "alice"})
+
+    assert response.status_code == 401
+    assert not nextcloud.called
+
+
 def test_a_duplicated_route_wrap_is_a_build_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """The counter probe: a silently unwrapped MCP route is the whole finding CR-01."""
     original = entry_exapp.MCP_PATH

@@ -43,6 +43,11 @@ bob does not have it in his list at all, and bob reaches neither its history nor
 the real token. The comparison point there is the message count from alice's side before and
 after bob's two attempts, because no tool of this server can remove a message again.
 
+The AppAPI proxy block asks it over the way in of Nextcloud's Context Agent
+(docs/context-agent.md): an ExApp signature for one user, authenticated by Nextcloud and
+forwarded by its proxy. Alice finds her file, bob does not even when an argument names
+alice, and a signature without a user is refused.
+
 The app id ``mcp_connector`` is frozen (docs/app-id-freeze.md), so the HaRP route
 ``/exapps/mcp_connector/mcp`` is a constant here rather than an interpolation.
 
@@ -76,7 +81,7 @@ from mcp_connector.nextcloud import NcClients
 from mcp_connector.nextcloud.clients import ocs
 from mcp_connector.nextcloud.clients import tables as tables_client
 from mcp_connector.nextcloud.clients import talk as talk_client
-from mcp_connector.nextcloud.credentials import MODE_APPAPI, Credentials
+from mcp_connector.nextcloud.credentials import MODE_APPAPI, Credentials, appapi_auth_headers
 from mcp_connector.tools import tables as tables_tools
 from mcp_connector.tools import talk as talk_tools
 
@@ -303,6 +308,84 @@ async def test_bob_cannot_read_alices_file_even_knowing_the_exact_path(
             message = " ".join(_texts(result))
     assert SECRET_LINE not in message, "the refusal carried the content of alice's file"
     assert "Vertrauliche" not in message, "the refusal carried the content of alice's file"
+
+
+# ---------------------------------------------------------------------------------------
+# The AppAPI proxy, the way in of Nextcloud's Context Agent (docs/context-agent.md,
+# gestion-aio#89). The caller signs as an ExApp for one user, Nextcloud authenticates that
+# signature and forwards the call with its own signature for the user. The signing ExApp is
+# this one, the only one whose secret the topology hands out; Nextcloud treats the
+# signature of every enabled ExApp the same way, the Context Agent's included.
+# ---------------------------------------------------------------------------------------
+
+PROXY_MCP_PATH = "/index.php/apps/app_api/proxy/mcp_connector/mcp"
+
+
+def _signed_for(exapp_env: dict[str, str], user: str) -> dict[str, str]:
+    """The four AppAPI headers an ExApp sends to Nextcloud on behalf of ``user``."""
+    return appapi_auth_headers(
+        user,
+        app_id=exapp_env["app_id"],
+        app_version=exapp_env["app_version"],
+        aa_version=exapp_env["aa_version"],
+        app_secret=exapp_env["app_secret"],
+    )
+
+
+@asynccontextmanager
+async def _proxy_session(exapp_env: dict[str, str], user: str) -> AsyncIterator[Client]:
+    """An MCP session through Nextcloud's AppAPI proxy, signed for one user."""
+    url = exapp_env["base_url"].rstrip("/") + PROXY_MCP_PATH
+    timeout = httpx2.Timeout(30.0, read=300.0)
+    async with (
+        httpx2.AsyncClient(headers=_signed_for(exapp_env, user), timeout=timeout) as http_client,
+        Client(streamable_http_client(url, http_client=http_client)) as client,
+    ):
+        yield client
+
+
+async def test_alice_finds_her_own_file_over_the_appapi_proxy(
+    exapp_env: dict[str, str], alices_content: dict[str, str]
+) -> None:
+    """Positive control: the proxy carries a whole MCP session for the signed user."""
+    async with _proxy_session(exapp_env, exapp_env["alice"]) as c:
+        result = _payload(await c.call_tool("files_search", {"query": alices_content["marker"]}))
+
+    paths = {item["path"] for item in result["items"]}
+    assert alices_content["file_path"] in paths, f"alice cannot find her own file: {result!r}"
+
+
+async def test_bob_does_not_find_alices_file_over_the_appapi_proxy_even_naming_her(
+    exapp_env: dict[str, str], alices_content: dict[str, str]
+) -> None:
+    """Leak test: a call signed for bob runs as bob, whichever user its arguments name."""
+    arguments = {"query": alices_content["marker"], "user": exapp_env["alice"]}
+    async with _proxy_session(exapp_env, exapp_env["bob"]) as c:
+        result = _payload(await c.call_tool("files_search", arguments))
+
+    assert result["items"] == [], f"bob sees alice's file over the proxy: {result!r}"
+
+
+async def test_the_appapi_proxy_refuses_a_call_without_a_user(exapp_env: dict[str, str]) -> None:
+    """A signature without a user is the app context, and the connector serves it nothing."""
+    initialize = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "app-context", "version": "0"},
+        },
+    }
+    headers = {**_signed_for(exapp_env, ""), "Accept": "application/json, text/event-stream"}
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            exapp_env["base_url"].rstrip("/") + PROXY_MCP_PATH, json=initialize, headers=headers
+        )
+
+    assert response.status_code == 401, f"the app context was served: {response.status_code}"
+    assert "mcp-session-id" not in response.headers
 
 
 # ---------------------------------------------------------------------------------------

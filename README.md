@@ -206,6 +206,8 @@ The same server speaks Streamable HTTP for remote clients, on `POST /mcp`, where
 and the three errors that actually happen: [docs/client-setup.md](docs/client-setup.md). OAuth
 for administrators: [docs/oauth-setup.md](docs/oauth-setup.md). Automation platforms are
 clients too, with one OAuth connection per person: [docs/n8n-setup.md](docs/n8n-setup.md).
+Nextcloud's own Context Agent calls in as the asking user over the AppAPI proxy:
+[docs/context-agent.md](docs/context-agent.md).
 
 When `NC_MCP_FILES_ROOT` is set, `/` becomes that directory for the file tools. For example,
 `/scan.pdf` is resolved under `/Documents/AI`, and no file tool can reach its parent folders.
