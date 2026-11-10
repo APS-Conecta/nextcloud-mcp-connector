@@ -134,6 +134,14 @@ FORBIDDEN: dict[str, str] = {
     "harness only",
     "/apps/files/api/v1/files": "no tool may change the legacy file tags or the favourite "
     "mark via POST",
+    # APS-Conecta/gestion-aio#94: the share and permission calls no other needle names, each
+    # proven by its line in SHARE_AND_PERMISSION_ROUTES.
+    "/acl": "no tool may share a Deck board or change who may edit, share or manage it",
+    "/permissions": "no tool may change the permissions of a Talk conversation or of one "
+    "of its participants",
+    '}share"': "no tool may share a calendar or an address book: that is a POST of an "
+    "oc:share body on the collection",
+    "publish-calendar": "no tool may publish a calendar under a public link",
 }
 
 # The only MOVE in production is Nextcloud's internal chunk-assembly step. It carries
@@ -203,6 +211,29 @@ SYSTEMTAGS_ROUTES: dict[str, str] = {
     "tag:files": '    occ("tag:files:add", target, "kein-ki", "public")',
     "/apps/files/api/v1/files": "    await client.post("
     'f"{creds.base_url}/index.php/apps/files/api/v1/files{path}", json={"tags": tags})',
+}
+
+#: The share and permission needles of APS-Conecta/gestion-aio#94, each with the module it
+#: would land in and a line that would carry it there, spelled the way that module builds a
+#: path or an XML element. Same job as the route dictionaries above: a needle nobody ever
+#: hit is indistinguishable from no needle at all.
+SHARE_AND_PERMISSION_ROUTES: dict[str, tuple[str, str]] = {
+    "/acl": (
+        "nextcloud/clients/deck.py",
+        '    await client.post(api_url(creds, f"/boards/{board}/acl"), json=body)',
+    ),
+    "/permissions": (
+        "nextcloud/clients/talk.py",
+        '    url = ocs.ocs_url(creds, f"{ROOM_PREFIX}/{room}/attendees/permissions")',
+    ),
+    '}share"': (
+        "nextcloud/clients/caldav.py",
+        '    root = etree.Element(f"{{{xml.OC}}}share", nsmap={"o": xml.OC})',
+    ),
+    "publish-calendar": (
+        "nextcloud/clients/caldav.py",
+        '    root = etree.Element(f"{{{xml.CS}}}publish-calendar", nsmap={"cs": xml.CS})',
+    ),
 }
 
 #: The two verbs a call on the system tag collection may carry. Everything else that touches
@@ -902,6 +933,29 @@ def test_every_systemtags_needle_of_this_phase_has_a_counter_proof() -> None:
     )
     unarmed = sorted(needle for needle in SYSTEMTAGS_NEEDLES if needle not in FORBIDDEN)
     assert unarmed == [], f"a tag needle that is not armed in FORBIDDEN: {unarmed}"
+
+
+@pytest.mark.parametrize(("needle", "route"), sorted(SHARE_AND_PERMISSION_ROUTES.items()))
+def test_each_share_or_permission_needle_trips_on_its_call_and_leaves_the_real_module_alone(
+    needle: str, route: tuple[str, str]
+) -> None:
+    """Counter proof per needle: no tool shares an object or changes who may use it.
+
+    A Deck board is shared and its rights are set on ``/acl``, the rights in a Talk
+    conversation on ``/permissions``, and a calendar or address book is shared or published
+    with a POST of an XML body on the collection itself. None of them needs a forbidden verb,
+    so the route or the XML element is the needle, proven here in both directions.
+    """
+    relative, line = route
+    real = _code_lines(SRC / relative)
+    assert _violations(relative, real) == [], (
+        f"{relative} must be clean before a needle can prove anything"
+    )
+
+    findings = _violations(relative, [*real, (len(real) + 1, line)])
+    assert any(repr(needle) in finding for finding in findings), (
+        f"the gate must report {needle!r} for: {line.strip()}"
+    )
 
 
 @pytest.mark.parametrize(
