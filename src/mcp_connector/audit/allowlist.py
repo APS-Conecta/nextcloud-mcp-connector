@@ -19,7 +19,8 @@ from collections.abc import Mapping
 #: ``description``, ``location``, ``summary``, ``title`` and ``values`` join for exactly the
 #: same reason: they are the payload fields of ``calendar_create_event``, ``deck_create_card``,
 #: ``notes_create`` and ``tables_create_row``, the text a person typed, and the presence of
-#: the payload is already said by the tool name.
+#: the payload is already said by the tool name. The three update tools of gestion-aio#94
+#: carry the same payload names and inherit the same rule.
 FORBIDDEN_PARAMS: frozenset[str] = frozenset(
     {
         "content",
@@ -45,9 +46,11 @@ FORBIDDEN_PARAMS: frozenset[str] = frozenset(
 PARAM_ALLOWLIST: Mapping[str, frozenset[str]] = {
     "calendar_create_event": frozenset({"all_day", "calendar", "end", "start", "timezone"}),
     "calendar_list_events": frozenset({"calendar", "end", "limit", "start", "timezone"}),
+    "calendar_update_event": frozenset({"end", "event_id", "start"}),
     "contacts_search": frozenset({"limit", "query"}),
     "deck_browse": frozenset({"board_id", "level", "limit", "stack_id"}),
     "deck_create_card": frozenset({"board_id", "duedate", "stack_id"}),
+    "deck_update_card": frozenset({"card_id", "duedate"}),
     "fetch": frozenset({"id"}),
     "files_download": frozenset({"chunk_bytes", "offset", "path"}),
     "files_list": frozenset({"cursor", "limit", "path"}),
@@ -61,6 +64,7 @@ PARAM_ALLOWLIST: Mapping[str, frozenset[str]] = {
     "notes_create": frozenset({"category"}),
     "notes_read": frozenset({"note_id"}),
     "notes_search": frozenset({"limit", "query"}),
+    "notes_update": frozenset({"etag", "note_id"}),
     "prepare_context": frozenset({"detail", "query"}),
     "search": frozenset({"query"}),
     "tables_browse": frozenset({"cursor", "level", "limit", "table_id"}),

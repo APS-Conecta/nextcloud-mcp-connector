@@ -1,4 +1,4 @@
-"""Deck tools: one browse tool with a level, and one create-only write (D-06, TOOL-04).
+"""Deck tools: one browse tool with a level, a create and an update (D-06, TOOL-04, #94).
 
 **One tool, three levels.** ``deck_browse(level=...)`` walks boards, stacks and cards.
 Three separate tools would cost three slots in every client that limits them and three
@@ -17,15 +17,16 @@ forbids board creation is checked against the board's own permissions instead of
 walked into a 403: ``canCreateBoards`` governs new boards, not cards on an existing board,
 so the honest question is whether *this* board grants an edit permission (threat T-01-63).
 
-Deliberately absent: update, delete, board or stack creation. The client below has no code
-for any of it, which is what makes the create-only annotation of ``deck_create_card``
-honest rather than a promise (threat T-01-62).
+Deliberately absent: delete, board or stack creation, labels and assignments. The client
+below has no code for any of it (threat T-01-62). ``deck_update_card`` changes title,
+description or due date of one card and nothing else, and only on a board that grants this
+account an edit permission (gestion-aio#94).
 """
 
 from typing import Any
 
 from .. import ids
-from ..errors import ToolError
+from ..errors import REASON_PERMISSION_DENIED, ToolError
 from ..nextcloud import NcClients, capabilities
 from ..nextcloud.clients import deck as deck_client
 
@@ -123,6 +124,68 @@ async def create_card(
     }
     if card.get("duedate"):
         result["duedate"] = card["duedate"]
+    return result
+
+
+async def update_card(
+    clients: NcClients,
+    card_id: str,
+    title: str | None = None,
+    description: str | None = None,
+    duedate: str | None = None,
+) -> dict[str, Any]:
+    """Change title, description or due date of one card; every other field stays.
+
+    The board's own permission decides first, so a card on a board shared read-only is
+    refused before any write; Deck refuses that write with 403 as well.
+    """
+    await capabilities.require_app(clients, APP)
+    kind, parts = ids.parse(card_id)
+    if kind != "card" or len(parts) != 3:
+        raise ToolError(
+            message=f"{card_id!r} is not a card id of the form card:<board>:<stack>:<card>.",
+            hint="Use an id from deck_browse with level=cards.",
+        )
+    board, stack, card = parts
+    wanted = deck_client.check_title(title) if title else None
+    if duedate:
+        duedate = deck_client.check_duedate(duedate)
+    if not (wanted or description or duedate):
+        raise ToolError(
+            message="Nothing to change: give a title, a description or a duedate.",
+            hint="Name only the fields that should change; the others stay as they are.",
+        )
+
+    board_data = await deck_client.get_board(clients.client, clients.creds, board)
+    if not _can_edit(board_data):
+        raise ToolError(
+            message=f"No permission to change cards on board {board} ({board_data.get('title')}).",
+            hint="Ask the owner of the board in Nextcloud for an edit permission.",
+            reason=REASON_PERMISSION_DENIED,
+        )
+    current = await deck_client.get_card(clients.client, clients.creds, board, stack, card)
+    # Deck reads the card by its id alone but moves it to the route's stack on PUT, so the
+    # write goes to the stack the card is in now: a stale id must not move it back.
+    stack = current.get("stackId") or stack
+    stored = await deck_client.update_card(
+        clients.client,
+        clients.creds,
+        board,
+        stack,
+        card,
+        current,
+        title=wanted,
+        description=description or None,
+        duedate=duedate or None,
+    )
+
+    result: dict[str, Any] = {
+        "id": ids.encode_card(board, stack, card),
+        "title": str(stored.get("title") or ""),
+        "url": deck_client.web_url(clients.creds, card),
+    }
+    if stored.get("duedate"):
+        result["duedate"] = stored["duedate"]
     return result
 
 

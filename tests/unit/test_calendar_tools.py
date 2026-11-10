@@ -15,7 +15,7 @@ import pytest
 import respx
 from icalendar import Calendar as IcsCalendar
 
-from mcp_connector.errors import ConflictError, ToolError
+from mcp_connector.errors import REASON_PERMISSION_DENIED, ConflictError, ToolError
 from mcp_connector.nextcloud import NcClients
 from mcp_connector.nextcloud.credentials import Credentials
 from mcp_connector.tools import calendar as calendar_tools
@@ -823,3 +823,192 @@ async def test_creating_without_any_calendar_names_the_occ_command(
 
     assert put.call_count == 0
     assert "dav:create-calendar" in excinfo.value.hint
+
+
+# --- calendar_update_event (APS-Conecta/gestion-aio#94) -------------------------------------
+
+SHARED = f"{CALENDAR_HOME}personal_shared_by_bob/"
+EVENT_ICS = (
+    "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n"
+    "BEGIN:VEVENT\r\nUID:ev-1\r\nDTSTAMP:20260801T080000Z\r\n"
+    "DTSTART:20260915T120000Z\r\nDTEND:20260915T130000Z\r\n"
+    "SUMMARY:Teamrunde\r\nLOCATION:Raum 2\r\nDESCRIPTION:Agenda folgt\r\n"
+    "END:VEVENT\r\nEND:VCALENDAR\r\n"
+)
+
+
+def event_response(ics: str = EVENT_ICS, etag: str = '"e-1"') -> httpx.Response:
+    return httpx.Response(200, text=ics, headers={"ETag": etag, "Content-Type": "text/calendar"})
+
+
+def home_with_shared(*, read_only: bool) -> httpx.Response:
+    """The calendar home: personal, plus a calendar bob shares into it."""
+    flag = "1" if read_only else "0"
+    shared = (
+        f"<d:response><d:href>{SHARED.removeprefix(BASE)}</d:href><d:propstat><d:prop>"
+        "<d:displayname>Team</d:displayname><d:resourcetype><d:collection/><cal:calendar/>"
+        '</d:resourcetype><cal:supported-calendar-component-set><cal:comp name="VEVENT"/>'
+        f"</cal:supported-calendar-component-set><oc:read-only>{flag}</oc:read-only></d:prop>"
+        "<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
+    )
+    body = fixture("caldav_calendars_207.xml").replace(
+        "</d:multistatus>", f"{shared}</d:multistatus>"
+    )
+    return dav_response(body)
+
+
+def mock_home(mock: respx.MockRouter, *, read_only: bool = True) -> None:
+    mock.route(method="PROPFIND", url=CALENDAR_HOME).mock(
+        return_value=home_with_shared(read_only=read_only)
+    )
+
+
+@pytest.mark.anyio
+async def test_update_event_in_a_calendar_the_user_cannot_edit_is_refused(
+    clients: NcClients,
+) -> None:
+    """A calendar shared read-only is refused before any request touches the event."""
+    with respx.mock(assert_all_called=False) as mock:
+        mock_home(mock)
+        event = mock.route(url__startswith=SHARED)
+        with pytest.raises(ToolError) as excinfo:
+            await calendar_tools.update_event(
+                clients, event_id="event:personal_shared_by_bob:ev-1.ics", summary="Neu"
+            )
+
+    assert event.call_count == 0
+    assert excinfo.value.reason == REASON_PERMISSION_DENIED
+    assert excinfo.value.message == "The calendar Team is read-only for this account."
+
+
+@pytest.mark.anyio
+async def test_update_event_reports_a_write_sabre_refuses(clients: NcClients) -> None:
+    with respx.mock(assert_all_called=True) as mock:
+        mock_home(mock, read_only=False)
+        mock.get(f"{SHARED}ev-1.ics").mock(return_value=event_response())
+        mock.put(f"{SHARED}ev-1.ics").mock(return_value=httpx.Response(403))
+        with pytest.raises(ToolError) as excinfo:
+            await calendar_tools.update_event(
+                clients, event_id="event:personal_shared_by_bob:ev-1.ics", summary="Neu"
+            )
+
+    assert excinfo.value.reason == REASON_PERMISSION_DENIED
+
+
+@pytest.mark.anyio
+async def test_update_event_changes_only_the_named_field_under_the_etag(
+    clients: NcClients,
+) -> None:
+    with respx.mock(assert_all_called=True) as mock:
+        mock_home(mock, read_only=False)
+        mock.get(f"{PERSONAL}ev-1.ics").mock(
+            side_effect=[event_response(), event_response(EVENT_ICS.replace("Teamrunde", "Neu"))]
+        )
+        put = mock.put(f"{PERSONAL}ev-1.ics").mock(return_value=httpx.Response(204))
+        result = await calendar_tools.update_event(
+            clients, event_id="event:personal:ev-1.ics", summary=" Neu "
+        )
+
+    request = put.calls[0].request
+    assert request.headers["If-Match"] == '"e-1"'
+    written = IcsCalendar.from_ical(request.content).walk("VEVENT")[0]
+    assert str(written["SUMMARY"]) == "Neu"
+    assert str(written["LOCATION"]) == "Raum 2"
+    assert str(written["DESCRIPTION"]) == "Agenda folgt"
+    assert str(written["UID"]) == "ev-1"
+    assert written.decoded("DTSTART") == datetime(2026, 9, 15, 12, tzinfo=UTC)
+    assert written["SEQUENCE"] == 1
+    assert result == {
+        "id": "event:personal:ev-1.ics",
+        "uid": "ev-1",
+        "summary": "Neu",
+        "start": "2026-09-15T12:00:00+00:00",
+        "end": "2026-09-15T13:00:00+00:00",
+        "all_day": False,
+        "calendar": "Persönlich",
+        "location": "Raum 2",
+        "updated": True,
+        "confirmed": True,
+    }
+
+
+@pytest.mark.anyio
+async def test_update_event_moves_the_times_in_the_zone_the_event_is_stored_in(
+    clients: NcClients,
+) -> None:
+    berlin = EVENT_ICS.replace(
+        "DTSTART:20260915T120000Z\r\nDTEND:20260915T130000Z",
+        "DTSTART;TZID=Europe/Berlin:20260915T140000\r\nDURATION:PT1H",
+    )
+    with respx.mock(assert_all_called=False) as mock:
+        mock_home(mock, read_only=False)
+        mock.get(f"{PERSONAL}ev-1.ics").mock(
+            side_effect=[event_response(berlin), httpx.Response(500)]
+        )
+        put = mock.put(f"{PERSONAL}ev-1.ics").mock(return_value=httpx.Response(204))
+        result = await calendar_tools.update_event(
+            clients,
+            event_id="event:personal:ev-1.ics",
+            start="2026-09-16T08:00:00Z",
+            end="2026-09-16T09:30:00Z",
+        )
+
+    written = IcsCalendar.from_ical(put.calls[0].request.content).walk("VEVENT")[0]
+    assert "DURATION" not in written
+    assert written["DTSTART"].params["TZID"] == "Europe/Berlin"
+    assert written.decoded("DTSTART").isoformat() == "2026-09-16T10:00:00+02:00"
+    assert written.decoded("DTEND").isoformat() == "2026-09-16T11:30:00+02:00"
+    assert result["start"] == "2026-09-16T10:00:00+02:00"
+    assert result["confirmed"] is False
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("fields", "ics"),
+    [
+        ({"summary": "Neu"}, EVENT_ICS.replace("SUMMARY:", "RRULE:FREQ=WEEKLY\r\nSUMMARY:")),
+        ({"start": "2026-09-16T08:00:00Z"}, EVENT_ICS),
+        ({"summary": "  "}, EVENT_ICS),
+    ],
+)
+async def test_update_event_refuses_a_series_a_lone_start_or_nothing_without_writing(
+    clients: NcClients, fields: dict[str, str], ics: str
+) -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_home(mock, read_only=False)
+        mock.get(f"{PERSONAL}ev-1.ics").mock(return_value=event_response(ics))
+        put = mock.put(f"{PERSONAL}ev-1.ics")
+        with pytest.raises(ToolError):
+            await calendar_tools.update_event(clients, event_id="event:personal:ev-1.ics", **fields)
+
+    assert put.call_count == 0
+
+
+@pytest.mark.anyio
+async def test_update_event_that_changed_in_between_is_a_conflict(clients: NcClients) -> None:
+    with respx.mock(assert_all_called=True) as mock:
+        mock_home(mock, read_only=False)
+        mock.get(f"{PERSONAL}ev-1.ics").mock(return_value=event_response())
+        mock.put(f"{PERSONAL}ev-1.ics").mock(return_value=httpx.Response(412))
+        with pytest.raises(ConflictError):
+            await calendar_tools.update_event(
+                clients, event_id="event:personal:ev-1.ics", location="Raum 3"
+            )
+
+
+@pytest.mark.anyio
+async def test_create_event_in_a_calendar_shared_read_only_is_refused(clients: NcClients) -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_home(mock)
+        put = mock.route(method="PUT", url__startswith=SHARED)
+        with pytest.raises(ToolError) as excinfo:
+            await calendar_tools.create_event(
+                clients,
+                summary="Neu",
+                start="2026-09-15T14:00:00+02:00",
+                end="2026-09-15T15:00:00+02:00",
+                calendar="personal_shared_by_bob",
+            )
+
+    assert put.call_count == 0
+    assert excinfo.value.reason == REASON_PERMISSION_DENIED

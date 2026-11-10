@@ -36,6 +36,7 @@ def parent_missing() -> str:
         ("talk_send", {"token": TOKEN}, unknown_token()),
         ("files_upload", {"path": UPLOAD}, parent_missing()),
         ("notes_create", {"category": "kat"}, parent_missing()),
+        ("notes_update", {"note_id": "note:933"}, "Nextcloud did not find the note 933."),
     ],
 )
 def test_the_does_not_exist_sentence_is_the_refusal(
@@ -51,6 +52,7 @@ def test_the_does_not_exist_sentence_is_the_refusal(
         ("talk_send", {"token": TOKEN}, withhold.EXCLUSION_UNAVAILABLE),
         ("files_upload", {"path": UPLOAD}, SERVER_ERROR),
         ("notes_create", {"category": "kat"}, "The Notes app is not installed."),
+        ("notes_update", {"note_id": "note:933"}, "The note 933 is read-only for this account."),
     ],
 )
 def test_any_other_error_is_not_the_refusal_in_the_normal_state(

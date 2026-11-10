@@ -40,7 +40,9 @@ FILE_READERS: dict[str, str] = {
     "notes_search": (
         "Notes are files and a note id is a fileid, so a hit names a file (tools/notes.py:71)."
     ),
-    "notes_read": "Answers one note by its id, which is a fileid (tools/notes.py:159-210).",
+    "notes_read": (
+        "Answers one note by its id, which is a fileid (tools/notes.py:159-193, :226-251)."
+    ),
     "unified_search": (
         "The files, comments, notes, systemtags and Findling providers carry files "
         "(tools/search.py:93-189)."
@@ -73,11 +75,15 @@ FILE_WRITERS: dict[str, str] = {
     ),
     "notes_create": (
         "Creates a note file in a category folder and checks folder and candidate file "
-        "(tools/notes.py:213-298)."
+        "(tools/notes.py:254-336)."
     ),
     "talk_send": (
         "Sends into a room by token, and the token of a file room is refused through one_room "
         "(tools/talk.py:820-858)."
+    ),
+    "notes_update": (
+        "Replaces the content of a note file by its fileid after the guard of notes_read, "
+        "_visible_note (tools/notes.py:195-223, :226-251)."
     ),
 }
 
@@ -85,7 +91,7 @@ FILE_WRITERS: dict[str, str] = {
 UNAFFECTED: dict[str, str] = {
     "calendar_list_events": (
         "Answers id, uid, summary, start, end, all_day, calendar and location only; ATTACH and "
-        "DESCRIPTION are never parsed (tools/calendar.py:440-455, clients/caldav.py:391-406)."
+        "DESCRIPTION are never parsed (tools/calendar.py:542-557, clients/caldav.py:454-469)."
     ),
     "calendar_create_event": (
         "Answers the echo of its own arguments plus a read-back of the same fields and takes "
@@ -93,11 +99,19 @@ UNAFFECTED: dict[str, str] = {
     ),
     "deck_browse": (
         "Answers id, title, stack, url and duedate only; description and attachments of a card "
-        "never leave the tool (tools/deck.py:183-190)."
+        "never leave the tool (tools/deck.py:246-253)."
     ),
     "deck_create_card": (
         "Answers id, title, url and duedate, and board and stack are digit ids "
-        "(tools/deck.py:119-126, clients/deck.py:210-218)."
+        "(tools/deck.py:120-127, clients/deck.py:255-263)."
+    ),
+    "deck_update_card": (
+        "Answers id, title, url and duedate of the card it changed; description and "
+        "attachments never leave the tool (tools/deck.py:130-189)."
+    ),
+    "calendar_update_event": (
+        "Answers the same fields as calendar_create_event and leaves ATTACH untouched in the "
+        "object, never parsed (tools/calendar.py:322-410)."
     ),
     "contacts_search": (
         "Answers full_name, emails, phones, organization, addressbook and uid; no PHOTO, no URL "
@@ -131,6 +145,7 @@ PAIR_CASES: dict[tuple[str, str], str] = {
     ("notes_read", "note"): "apps",
     ("fetch", "note"): "apps",
     ("notes_create", "category"): "apps",
+    ("notes_update", "note"): "apps",
     ("talk_browse", "messages"): "apps",
     ("talk_send", "token"): "apps",
     ("fetch", "message"): "apps",

@@ -1,4 +1,4 @@
-"""CalDAV client: calendar discovery, a server expanded calendar-query and a create-only PUT.
+"""CalDAV client: discovery, a server expanded calendar-query, a create-only and an If-Match PUT.
 
 Three decisions carry this module, and all three exist because CalDAV time handling is
 where the competing servers collect their bug reports.
@@ -70,10 +70,16 @@ _COMPONENT_EVENT = "VEVENT"
 
 @dataclass(frozen=True, slots=True)
 class CalendarRef:
-    """One writable calendar of the user: its URI on the wire and its name for humans."""
+    """One event calendar of the user: its URI on the wire and its name for humans.
+
+    ``read_only`` is ``oc:read-only`` of a calendar shared into the account without write
+    permission. The writes refuse such a calendar before they send anything (gestion-aio#94),
+    so the refusal never depends on how the server answers a write.
+    """
 
     uri: str
     display_name: str
+    read_only: bool = False
 
 
 def to_caldav_utc(value: datetime) -> str:
@@ -159,13 +165,14 @@ def build_discovery_body() -> bytes:
     """Build the PROPFIND body of the calendar discovery."""
     root = etree.Element(
         f"{{{xml.DAV}}}propfind",
-        nsmap={"d": xml.DAV, "c": xml.CAL, "cs": xml.CS},
+        nsmap={"d": xml.DAV, "c": xml.CAL, "cs": xml.CS, "oc": xml.OC},
     )
     prop = etree.SubElement(root, f"{{{xml.DAV}}}prop")
     etree.SubElement(prop, f"{{{xml.DAV}}}displayname")
     etree.SubElement(prop, f"{{{xml.DAV}}}resourcetype")
     etree.SubElement(prop, f"{{{xml.CS}}}getctag")
     etree.SubElement(prop, f"{{{xml.CAL}}}supported-calendar-component-set")
+    etree.SubElement(prop, f"{{{xml.OC}}}read-only")
     return etree.tostring(root, xml_declaration=True, encoding="utf-8")
 
 
@@ -227,7 +234,9 @@ def parse_calendar_home(body: str | bytes, home_path: str = "") -> list[Calendar
             continue
         name_element = props.find(f"{{{xml.DAV}}}displayname")
         display_name = (name_element.text or "").strip() if name_element is not None else ""
-        found.append(CalendarRef(uri=uri, display_name=display_name or uri))
+        flag = props.find(f"{{{xml.OC}}}read-only")
+        read_only = flag is not None and (flag.text or "").strip().lower() in ("1", "true")
+        found.append(CalendarRef(uri=uri, display_name=display_name or uri, read_only=read_only))
     return found
 
 
@@ -321,18 +330,26 @@ async def get_event(
     calendar: str | None = None,
 ) -> list[dict[str, Any]]:
     """GET one calendar object and parse it. The read back proof after a write."""
+    text, _etag = await get_object(client, creds, calendar_uri, object_name)
+    return parse_ics(
+        text,
+        calendar_uri=calendar_uri,
+        object_name=object_name,
+        calendar=calendar,
+    )
+
+
+async def get_object(
+    client: httpx.AsyncClient, creds: Credentials, calendar_uri: str, object_name: str
+) -> tuple[str, str]:
+    """GET one calendar object as text with its ETag, the precondition of a replace."""
     response = await client.get(
         object_url(creds, calendar_uri, object_name),
         headers={"Accept": "text/calendar"},
         auth=creds.auth(),
     )
     _check(response, f"the event {object_name}")
-    return parse_ics(
-        response.text,
-        calendar_uri=calendar_uri,
-        object_name=object_name,
-        calendar=calendar,
-    )
+    return response.text, response.headers.get("etag", "")
 
 
 async def put_event(
@@ -361,6 +378,52 @@ async def put_event(
         "etag": response.headers.get("etag", ""),
         "created": True,
     }
+
+
+async def replace_event(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    calendar_uri: str,
+    object_name: str,
+    ics_bytes: bytes,
+    etag: str,
+) -> None:
+    """Replace one calendar object only while its ETag still matches (gestion-aio#94).
+
+    ``If-Match`` is evaluated by sabre inside the same request, like ``If-None-Match: *`` of
+    :func:`put_event`: an object that changed since it was read is answered with 412 and left
+    alone. An empty ETag would make the write unconditional, so it never leaves.
+    """
+    if not etag.strip():
+        raise ToolError(
+            message=f"Nextcloud reported no ETag for the event {object_name}; nothing changed.",
+            hint="Retry once; this server only replaces an event it has just read.",
+        )
+    response = await client.put(
+        object_url(creds, calendar_uri, object_name),
+        content=ics_bytes,
+        headers={"If-Match": etag, "Content-Type": "text/calendar; charset=utf-8"},
+        auth=creds.auth(),
+    )
+    status = response.status_code
+    if status in (200, 204):
+        return
+    if status == 412:
+        raise ConflictError(
+            message=f"The event {object_name} changed while it was updated; nothing was written.",
+            hint="Call the update again; it reads the event anew.",
+        )
+    if status == 403:
+        raise ToolError(
+            message=f"No permission to change events in the calendar {calendar_uri}.",
+            hint="Ask the owner of that calendar for write permission in Nextcloud.",
+            reason=REASON_PERMISSION_DENIED,
+        )
+    _check(response, f"the event {object_name}")
+    raise ToolError(
+        message=f"Nextcloud answered the update with an unexpected status {status}.",
+        hint="Check the Nextcloud log for that request; the event was probably not changed.",
+    )
 
 
 def parse_ics(

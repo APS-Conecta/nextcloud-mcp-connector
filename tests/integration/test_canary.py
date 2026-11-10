@@ -60,7 +60,7 @@ from mcp_connector.tools import withhold
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 
 RAW = cw.RAW_DIR / "28-10-canary.txt"
-EXPECTED_TOOLS = 23
+EXPECTED_TOOLS = 26
 MAX_PAGES = 50
 COMMAND = (
     "PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_canary.py "
@@ -86,7 +86,7 @@ WRITE_KINDS: dict[str, str] = {
 }
 
 #: The write tools that aim at a tagged target and therefore have to refuse.
-MUST_REFUSE = ("files_upload", "notes_create", "talk_send")
+MUST_REFUSE = ("files_upload", "notes_create", "notes_update", "talk_send")
 
 
 def log(line: str) -> None:
@@ -167,6 +167,7 @@ def plan(world: cw.World) -> dict[str, list[dict[str, Any]]]:
         "notes_create": [
             {"title": f"{world.stamm}-neu", "content": "x", "category": world.tagged_category}
         ],
+        "notes_update": [{"note_id": f"note:{world.note_id}", "content": "x", "etag": "x"}],
         "unified_search": [{"query": world.stamm, "limit": search_tools.MAX_LIMIT}],
         "prepare_context": [
             {"query": world.stamm, "detail": "full"},
@@ -202,6 +203,8 @@ def plan(world: cw.World) -> dict[str, list[dict[str, Any]]]:
                 "calendar": world.stamm,
             }
         ],
+        # The event's ATTACH names the tagged file; the update leaves it and must not answer it.
+        "calendar_update_event": [{"event_id": event, "location": f"{world.stamm}-ort"}],
         "deck_browse": [
             {"level": "boards"},
             {"level": "stacks", "board_id": world.board_id},
@@ -210,6 +213,8 @@ def plan(world: cw.World) -> dict[str, list[dict[str, Any]]]:
         "deck_create_card": [
             {"board_id": world.board_id, "stack_id": world.stack_id, "title": f"{world.stamm}-neu"}
         ],
+        # The card carries the tagged file as an attachment; the update must not answer it.
+        "deck_update_card": [{"card_id": card, "description": f"{world.stamm} neu"}],
         "contacts_search": [{"query": world.stamm}],
         "tables_browse": [
             {"level": "tables"},

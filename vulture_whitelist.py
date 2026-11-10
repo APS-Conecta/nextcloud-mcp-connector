@@ -25,11 +25,14 @@ files_download
 files_read_as_markdown
 calendar_list_events
 calendar_create_event
+calendar_update_event
 notes_search
 notes_read
 notes_create
+notes_update
 deck_browse
 deck_create_card
+deck_update_card
 tables_browse
 tables_create_row
 talk_browse

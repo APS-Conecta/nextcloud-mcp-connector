@@ -22,7 +22,7 @@ You bring the model, and no content leaves your server.
 
 ## What it does
 
-- 23 tools across nine app families: files, calendar, notes, Deck, contacts, Tables, Talk,
+- 26 tools across nine app families: files, calendar, notes, Deck, contacts, Tables, Talk,
   Mail and cloud wide search
 - OAuth 2.1 to the MCP authorization specification: dynamic client registration, PKCE S256,
   audience bound tokens, refresh rotation with reuse detection and immediate revocation.
@@ -40,6 +40,9 @@ You bring the model, and no content leaves your server.
 ## What this server cannot do
 
 - No deleting: no tool issues a DELETE against files, events, notes, cards or contacts
+- Updates only where you may edit: `notes_update`, `calendar_update_event` and `deck_update_card`
+  change the named fields of one existing note, single event or card. Nextcloud refuses an
+  object you cannot edit, and the note and event writes carry the ETag they were read with
 - No unconditional overwriting: `files_upload` refuses existing paths. If the admin enables
   `NC_MCP_FILES_UPDATE`, `files_update` can replace an existing UTF-8 text file only when its
   ETag matches the value read earlier; stale or deleted files are rejected. Version history
@@ -58,7 +61,8 @@ modules and fails on the first destructive call,
 ## Tools
 
 **read** means the tool only reads, **create-only** means it can create new objects but never
-modifies or removes existing ones. The table is not maintained by hand: a contract test reads
+modifies or removes existing ones, **update** means it changes the named fields of one existing
+object the user may edit and never removes it. The table is not maintained by hand: a contract test reads
 the live registry and fails if a name or a level disagrees with it.
 
 | Tool | Permission | What it does |
@@ -72,11 +76,14 @@ the live registry and fails if a name or a level disagrees with it.
 | `files_update` | conditional-update | Replaces an existing UTF-8 text file only with its previously read ETag; available only when the admin enables `NC_MCP_FILES_UPDATE` |
 | `calendar_list_events` | read | Events in an explicit time range, with an explicit time zone |
 | `calendar_create_event` | create-only | A new event; existing events are never changed |
+| `calendar_update_event` | update | Summary, times, place or text of one single event; a recurring series is refused |
 | `notes_search` | read | Notes by title and content, via the Nextcloud notes search provider |
 | `notes_read` | read | One note |
 | `notes_create` | create-only | A new note; existing notes are never changed |
+| `notes_update` | update | The text of one note, only with the ETag `notes_read` answered; title and folder stay |
 | `deck_browse` | read | Deck boards, stacks and cards |
 | `deck_create_card` | create-only | A new card in a stack; existing cards are never changed |
+| `deck_update_card` | update | Title, description or due date of one card on a board you may edit |
 | `tables_browse` | read | Tables: the tables, the columns of one, or its rows |
 | `tables_create_row` | create-only | A row addressed by column titles; existing rows are never changed |
 | `talk_browse` | read | Talk conversations and the history of one; reading leaves no trace |
@@ -113,15 +120,15 @@ missing app is answered in one sentence, never with an empty result.
 - Example: `export NC_MCP_DISABLED_TOOLS=mail,calendar`, useful when a second MCP server
   already offers mail and calendar and a smaller model confuses the two.
 - Bundles and their tools:
-  - `calendar`: `calendar_list_events`, `calendar_create_event`
+  - `calendar`: `calendar_list_events`, `calendar_create_event`, `calendar_update_event`
   - `chatgpt`: `search`, `fetch`
   - `contacts`: `contacts_search`
   - `context`: `prepare_context`
-  - `deck`: `deck_browse`, `deck_create_card`
+  - `deck`: `deck_browse`, `deck_create_card`, `deck_update_card`
   - `files`: `files_search`, `files_list`, `files_read`, `files_download`,
     `files_read_as_markdown`, `files_upload`
   - `mail`: `mail_browse`
-  - `notes`: `notes_search`, `notes_read`, `notes_create`
+  - `notes`: `notes_search`, `notes_read`, `notes_create`, `notes_update`
   - `search`: `unified_search`
   - `tables`: `tables_browse`, `tables_create_row`
   - `talk`: `talk_browse`, `talk_send`

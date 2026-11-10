@@ -21,11 +21,13 @@ from test_tool_surface import EXPECTED_TOOLS
 from mcp_connector.server import bundle_names
 
 BUNDLE_TOOLS: dict[str, frozenset[str]] = {
-    "calendar": frozenset({"calendar_list_events", "calendar_create_event"}),
+    "calendar": frozenset(
+        {"calendar_list_events", "calendar_create_event", "calendar_update_event"}
+    ),
     "chatgpt": frozenset({"search", "fetch"}),
     "contacts": frozenset({"contacts_search"}),
     "context": frozenset({"prepare_context"}),
-    "deck": frozenset({"deck_browse", "deck_create_card"}),
+    "deck": frozenset({"deck_browse", "deck_create_card", "deck_update_card"}),
     "files": frozenset(
         {
             "files_search",
@@ -37,7 +39,7 @@ BUNDLE_TOOLS: dict[str, frozenset[str]] = {
         }
     ),
     "mail": frozenset({"mail_browse"}),
-    "notes": frozenset({"notes_search", "notes_read", "notes_create"}),
+    "notes": frozenset({"notes_search", "notes_read", "notes_create", "notes_update"}),
     "search": frozenset({"unified_search"}),
     "tables": frozenset({"tables_browse", "tables_create_row"}),
     "talk": frozenset({"talk_browse", "talk_send"}),

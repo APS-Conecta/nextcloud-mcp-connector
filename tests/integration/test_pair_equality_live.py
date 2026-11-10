@@ -181,6 +181,14 @@ CASES: dict[tuple[str, str], Callable[[cw.World], Pair]] = {
         "fetch", "id", f"note:{w.note_id}", f"note:{UNKNOWN_FILEID}"
     ),
     ("notes_create", "category"): _notes_create,
+    ("notes_update", "note"): lambda w: _id_pair(
+        "notes_update",
+        "note_id",
+        f"note:{w.note_id}",
+        f"note:{UNKNOWN_FILEID}",
+        content="x",
+        etag="x",
+    ),
     ("talk_browse", "messages"): lambda w: _id_pair(
         "talk_browse", "token", w.file_room_token, INVENTED_TOKEN, level="messages"
     ),

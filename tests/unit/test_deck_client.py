@@ -325,11 +325,13 @@ async def test_a_board_list_that_is_not_a_list_is_reported_as_such(
     assert excinfo.value.hint
 
 
-def test_the_module_has_no_delete_or_update_path() -> None:
-    """The server promise: this client cannot overwrite or remove anything (T-01-62)."""
+def test_the_module_has_no_delete_path_and_exactly_one_update() -> None:
+    """The server promise: this client never removes anything (T-01-62), and its one PUT is
+    the card update of gestion-aio#94."""
     source = Path(deck_client.__file__).read_text(encoding="utf-8")
-    for forbidden in (".delete(", ".put(", ".patch("):
-        assert forbidden not in source, f"{forbidden} has no place in a create-only client"
+    for forbidden in (".delete(", ".patch("):
+        assert forbidden not in source, f"{forbidden} has no place in this client"
+    assert source.count(".put(") == 1, "the card update is the only PUT of this client"
 
 
 def test_the_module_reads_deck_errors_with_the_app_json_parser() -> None:

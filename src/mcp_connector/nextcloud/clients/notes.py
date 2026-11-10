@@ -1,4 +1,4 @@
-"""Notes REST v1 client: read, create and the settings, and nothing else.
+"""Notes REST v1 client: read, create, a compare and swap update and the settings.
 
 The API lives at ``/index.php/apps/notes/api/v1`` and is an ordinary app route, not an OCS
 route: the answer is the bare object and a failure is ``{"status": 4xx, "message": "..."}``,
@@ -10,16 +10,16 @@ the OCS envelope parser (pitfall 9).
 an unauthenticated call would otherwise receive into a plain 401, which is the difference
 between an actionable message and a parser guessing at HTML.
 
-There is deliberately no update and no delete function. The server promise is that it
-cannot overwrite or remove anything, and the cheapest way to keep a promise like that is to
-never write the code that could break it (TOOL-09, threat T-01-41).
+There is deliberately no delete function, and the one update carries ``If-Match``: the
+server promise is that it never removes anything and never overwrites a note it did not
+read first (TOOL-09, threat T-01-41, gestion-aio#94).
 """
 
 from typing import Any
 
 import httpx
 
-from ...errors import ToolError
+from ...errors import ConflictError, ToolError
 from ..credentials import Credentials
 from . import ocs
 
@@ -118,6 +118,41 @@ async def create_note(
         auth=creds.auth(),
     )
     return _as_note(ocs.parse_app_json(response, what="the new note"))
+
+
+async def update_note(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    note_id: str,
+    *,
+    content: str,
+    etag: str,
+) -> dict[str, Any]:
+    """Replace the content of one note only while its ETag still matches.
+
+    Notes compares ``If-Match`` against the quoted ETag (``Helper::getNoteWithETagCheck``),
+    so the bare ``etag`` attribute of a note is quoted here. An empty ETag would skip the
+    check altogether, so it is refused before the request.
+    """
+    note_id = _path_id(note_id)
+    tag = (etag or "").strip().strip('"')
+    if not tag:
+        raise ToolError(
+            message="An update needs the etag of the note.",
+            hint="Read the note with notes_read and send the etag it answers.",
+        )
+    response = await client.put(
+        api_url(creds, f"/notes/{note_id}"),
+        json={"content": content},
+        headers={**_HEADERS, "Content-Type": "application/json", "If-Match": f'"{tag}"'},
+        auth=creds.auth(),
+    )
+    if response.status_code == 412:
+        raise ConflictError(
+            message=f"The note {note_id} changed since it was read; nothing was written.",
+            hint="Read it again with notes_read and build the new text on that version.",
+        )
+    return _as_note(ocs.parse_app_json(response, what=f"the note {note_id}"))
 
 
 def _path_id(value: str | int, what: str = "note id") -> str:

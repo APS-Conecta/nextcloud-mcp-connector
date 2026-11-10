@@ -134,6 +134,20 @@ FORBIDDEN: dict[str, str] = {
     "harness only",
     "/apps/files/api/v1/files": "no tool may change the legacy file tags or the favourite "
     "mark via POST",
+    # APS-Conecta/gestion-aio#94: the share and permission calls no other needle names, each
+    # proven by its line in SHARE_AND_PERMISSION_ROUTES.
+    "/acl": "no tool may share a Deck board or change who may edit, share or manage it",
+    "/permissions": "no tool may change the permissions of a Talk conversation or of one "
+    "of its participants",
+    "/moderators": "no tool may promote a participant to moderator or demote one",
+    '}/public"': "no tool may open a conversation to guests through a public link or close "
+    "it again; the closing quote keeps the needle off lib/public in prose",
+    "/listable": "no tool may let every user find and join a conversation",
+    "/mention-permissions": "no tool may set who may mention everyone in a conversation; "
+    "'/permissions' misses it, because a '-' precedes that segment",
+    '}share"': "no tool may share a calendar or an address book: that is a POST of an "
+    "oc:share body on the collection",
+    "publish-calendar": "no tool may publish a calendar under a public link",
 }
 
 # The only MOVE in production is Nextcloud's internal chunk-assembly step. It carries
@@ -203,6 +217,45 @@ SYSTEMTAGS_ROUTES: dict[str, str] = {
     "tag:files": '    occ("tag:files:add", target, "kein-ki", "public")',
     "/apps/files/api/v1/files": "    await client.post("
     'f"{creds.base_url}/index.php/apps/files/api/v1/files{path}", json={"tags": tags})',
+}
+
+#: The share and permission needles of APS-Conecta/gestion-aio#94, each with the module it
+#: would land in and a line that would carry it there, spelled the way that module builds a
+#: path or an XML element. Same job as the route dictionaries above: a needle nobody ever
+#: hit is indistinguishable from no needle at all.
+SHARE_AND_PERMISSION_ROUTES: dict[str, tuple[str, str]] = {
+    "/acl": (
+        "nextcloud/clients/deck.py",
+        '    await client.post(api_url(creds, f"/boards/{board}/acl"), json=body)',
+    ),
+    "/permissions": (
+        "nextcloud/clients/talk.py",
+        '    url = ocs.ocs_url(creds, f"{ROOM_PREFIX}/{room}/attendees/permissions")',
+    ),
+    "/moderators": (
+        "nextcloud/clients/talk.py",
+        '    await ocs.ocs_post(client, creds, f"{ROOM_PREFIX}/{room}/moderators", b)',
+    ),
+    '}/public"': (
+        "nextcloud/clients/talk.py",
+        '    await ocs.ocs_post(client, creds, f"{ROOM_PREFIX}/{room}/public", b)',
+    ),
+    "/listable": (
+        "nextcloud/clients/talk.py",
+        '    url = ocs.ocs_url(creds, f"{ROOM_PREFIX}/{room}/listable")',
+    ),
+    "/mention-permissions": (
+        "nextcloud/clients/talk.py",
+        '    url = ocs.ocs_url(creds, f"{ROOM_PREFIX}/{room}/mention-permissions")',
+    ),
+    '}share"': (
+        "nextcloud/clients/caldav.py",
+        '    root = etree.Element(f"{{{xml.OC}}}share", nsmap={"o": xml.OC})',
+    ),
+    "publish-calendar": (
+        "nextcloud/clients/caldav.py",
+        '    root = etree.Element(f"{{{xml.CS}}}publish-calendar", nsmap={"cs": xml.CS})',
+    ),
 }
 
 #: The two verbs a call on the system tag collection may carry. Everything else that touches
@@ -469,15 +522,20 @@ def test_file_updates_keep_create_and_compare_and_swap_puts_distinct() -> None:
 #: A PUT that runs without a precondition header, pinned by file and function. The chunk
 #: protocol writes into Nextcloud's temporary upload folder and its final MOVE carries
 #: ``Overwrite: F``; the init-progress push is the ExApp talking about itself to the
-#: AppAPI control plane, never user content. A third entry here is a review event.
+#: AppAPI control plane, never user content. The Deck card update (gestion-aio#94) is the
+#: third, a review event: Deck's card route honours no ``If-Match``, so a header there would
+#: be the vacuous precondition this gate exists to refuse. The tool reads the card right
+#: before and writes every field back as read, except the ones the user named.
 UNCONDITIONAL_PUTS = {
     ("nextcloud/clients/dav.py", "put_upload_chunk"),
     ("exapp/status.py", "report_init_progress"),
+    ("nextcloud/clients/deck.py", "update_card"),
 }
 
 #: Every PUT call in the production code, counted. A new PUT that this gate somehow does
-#: not flag still changes the count, so it cannot slip in silently.
-EXPECTED_PUT_CALLS = 5
+#: not flag still changes the count, so it cannot slip in silently. Eight since the three
+#: update tools of gestion-aio#94 (notes and calendar under If-Match, Deck pinned above).
+EXPECTED_PUT_CALLS = 8
 
 
 def _usable_precondition(call: ast.Call) -> bool:
@@ -507,7 +565,7 @@ def _unconditional_puts(relative: str, tree: ast.AST) -> tuple[list[str], int]:
 
     Flags ``.put(...)`` calls and ``.request("PUT", ...)`` calls without a usable
     ``If-Match``/``If-None-Match`` header. The rule deliberately ignores the URL: a PUT
-    through a variable or a helper is held exactly like a spelled-out one, and the two
+    through a variable or a helper is held exactly like a spelled-out one, and the three
     PUTs that legitimately run unconditioned are pinned by name in
     ``UNCONDITIONAL_PUTS``.
     """
@@ -902,6 +960,32 @@ def test_every_systemtags_needle_of_this_phase_has_a_counter_proof() -> None:
     )
     unarmed = sorted(needle for needle in SYSTEMTAGS_NEEDLES if needle not in FORBIDDEN)
     assert unarmed == [], f"a tag needle that is not armed in FORBIDDEN: {unarmed}"
+
+
+@pytest.mark.parametrize(("needle", "route"), sorted(SHARE_AND_PERMISSION_ROUTES.items()))
+def test_each_share_or_permission_needle_trips_on_its_call_and_leaves_the_real_module_alone(
+    needle: str, route: tuple[str, str]
+) -> None:
+    """Counter proof per needle: no tool shares an object or changes who may use it.
+
+    A Deck board is shared and its rights are set on ``/acl``, the rights in a Talk
+    conversation on ``/permissions``; a Talk participant is promoted or demoted on
+    ``/moderators``, a conversation opened to guests on ``/public``, made findable by every
+    user on ``/listable``, and told who may mention everyone on ``/mention-permissions``;
+    and a calendar or address book is shared or published
+    with a POST of an XML body on the collection itself. None of them needs a forbidden verb,
+    so the route or the XML element is the needle, proven here in both directions.
+    """
+    relative, line = route
+    real = _code_lines(SRC / relative)
+    assert _violations(relative, real) == [], (
+        f"{relative} must be clean before a needle can prove anything"
+    )
+
+    findings = _violations(relative, [*real, (len(real) + 1, line)])
+    assert any(repr(needle) in finding for finding in findings), (
+        f"the gate must report {needle!r} for: {line.strip()}"
+    )
 
 
 @pytest.mark.parametrize(

@@ -180,6 +180,13 @@ protection incident.
   shows one more retained version after the write; null means the listing
   could not be read, for example with the versions app disabled or on another
   storage backend.
+- `notes_update`, `calendar_update_event` and `deck_update_card` are a further
+  way to change existing content that other people sharing the note, calendar
+  or board can see. They have no admin switch; each is classified as a write
+  the client confirms and is refused for an object the user cannot edit. The
+  note and event writes go under `If-Match`; the Deck card write-back has no
+  precondition (pinned in `UNCONDITIONAL_PUTS`). An operator who needs every
+  path closed reviews the shared calendars as well.
 - **Mail is read only.** There is no way in this app to send a mail, to create a
   draft, to move, flag or delete a message, and the attachment route of the Mail app
   is never called. The new family adds reach into private data and untrusted
@@ -187,7 +194,12 @@ protection incident.
 - No tool deletes, moves or re-shares files. Uploads remain create-only.
   When `NC_MCP_FILES_UPDATE` is enabled, `files_update` can replace an
   existing UTF-8 text file only with a matching ETag. Stale or deleted
-  targets are refused as conflicts.
+  targets are refused as conflicts. `notes_update`, `calendar_update_event`
+  and `deck_update_card` change an existing note, event or card that other
+  people sharing it can see, with no admin switch, as a write the client
+  confirms, and refused for an object the user cannot edit. The note and
+  event writes go under `If-Match`; the Deck card write-back has no
+  precondition (pinned in `UNCONDITIONAL_PUTS`).
 - The assistant never sees more than the signed in user. Every request runs under
   that identity, so Nextcloud's own permissions decide what an injection could
   reach at most.

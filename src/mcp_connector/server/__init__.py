@@ -59,7 +59,7 @@ mcp = MCPServer(
     "MCP Connector",
     version=__version__,
     instructions=(
-        "Read and create content in the user's own Nextcloud. "
+        "Read, create and update content in the user's own Nextcloud. "
         "Files are never deleted, moved, renamed or unconditionally overwritten."
         + (
             " Existing UTF-8 text files can be replaced with files_update, "

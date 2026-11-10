@@ -16,7 +16,7 @@ import httpx
 import pytest
 import respx
 
-from mcp_connector.errors import AppMissingError, ToolError
+from mcp_connector.errors import REASON_PERMISSION_DENIED, AppMissingError, ToolError
 from mcp_connector.nextcloud import NcClients, capabilities
 from mcp_connector.nextcloud.clients import notes as notes_client
 from mcp_connector.nextcloud.credentials import Credentials
@@ -217,6 +217,7 @@ async def test_read_returns_the_stable_fields_of_one_note(clients: NcClients) ->
         "category": "Meetings",
         "modified": 1755180000,
         "favorite": False,
+        "etag": "abc123",
         "url": f"{BASE}/index.php/apps/notes/note/12",
     }
     assert route.calls[0].request.headers["Accept"] == "application/json"
@@ -396,3 +397,80 @@ async def test_a_server_error_during_the_search_is_a_degraded_answer(clients: Nc
 
     assert "502" in excinfo.value.message
     assert excinfo.value.hint
+
+
+# --- notes_update (APS-Conecta/gestion-aio#94) ----------------------------------------------
+
+
+@pytest.mark.anyio
+async def test_update_refuses_a_note_the_user_cannot_edit_and_writes_nothing(
+    clients: NcClients,
+) -> None:
+    """A note shared without edit rights is refused before any write leaves this server."""
+    with respx.mock(assert_all_called=False) as mock:
+        mock_capabilities(mock)
+        mock.get(f"{NOTES_BASE}/12").mock(
+            return_value=httpx.Response(200, json={**NOTE_12, "readonly": True})
+        )
+        write = mock.put(f"{NOTES_BASE}/12")
+        with pytest.raises(ToolError) as excinfo:
+            await notes_tools.update(clients, note_id="note:12", content="neu", etag="abc123")
+
+    assert write.call_count == 0
+    assert excinfo.value.reason == REASON_PERMISSION_DENIED
+    assert excinfo.value.message == "The note 12 is read-only for this account."
+
+
+@pytest.mark.anyio
+async def test_update_sends_only_the_content_under_the_quoted_etag(clients: NcClients) -> None:
+    """Title and category stay out of the body, so the file is never renamed or moved."""
+    stored = {**NOTE_12, "content": "neu", "etag": "def456", "modified": 1755190000}
+    with respx.mock(assert_all_called=True) as mock:
+        mock_capabilities(mock)
+        mock.get(f"{NOTES_BASE}/12").mock(return_value=httpx.Response(200, json=NOTE_12))
+        write = mock.put(f"{NOTES_BASE}/12").mock(return_value=httpx.Response(200, json=stored))
+        result = await notes_tools.update(clients, note_id="note:12", content="neu", etag="abc123")
+
+    request = write.calls[0].request
+    assert request.headers["If-Match"] == '"abc123"'
+    assert json.loads(request.content) == {"content": "neu"}
+    assert result == {
+        "id": "note:12",
+        "title": "Protokoll 2026-08-14",
+        "modified": 1755190000,
+        "etag": "def456",
+        "url": f"{BASE}/index.php/apps/notes/note/12",
+    }
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("status", "reason"),
+    [(403, REASON_PERMISSION_DENIED), (412, "unspecified")],
+)
+async def test_update_reports_a_write_notes_itself_refuses(
+    clients: NcClients, status: int, reason: str
+) -> None:
+    """403: no edit right Notes knows of; 412: the note changed since it was read."""
+    with respx.mock(assert_all_called=True) as mock:
+        mock_capabilities(mock)
+        mock.get(f"{NOTES_BASE}/12").mock(return_value=httpx.Response(200, json=NOTE_12))
+        mock.put(f"{NOTES_BASE}/12").mock(
+            return_value=httpx.Response(status, json={"status": status, "message": "x"})
+        )
+        with pytest.raises(ToolError) as excinfo:
+            await notes_tools.update(clients, note_id="note:12", content="neu", etag="old")
+
+    assert excinfo.value.reason == reason
+
+
+@pytest.mark.anyio
+async def test_update_without_an_etag_never_writes(clients: NcClients) -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_capabilities(mock)
+        mock.get(f"{NOTES_BASE}/12").mock(return_value=httpx.Response(200, json=NOTE_12))
+        write = mock.put(f"{NOTES_BASE}/12")
+        with pytest.raises(ToolError):
+            await notes_tools.update(clients, note_id="note:12", content="neu", etag=" ")
+
+    assert write.call_count == 0

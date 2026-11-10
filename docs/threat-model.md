@@ -148,8 +148,15 @@ decision for the operator, see privacy.md, not a vulnerability).
 - No tool deletes, moves, renames, re-shares or changes permissions.
   `files_upload` remains create-only. When `NC_MCP_FILES_UPDATE` is
   enabled, `files_update` can replace existing UTF-8 text files only
-  with a matching ETag. Contract tests guard conditional file writes,
-  and `tests/contract/test_tool_classes.py` keeps every tool classified.
+  with a matching ETag. `notes_update`, `calendar_update_event` and
+  `deck_update_card` are a further way to change existing content that
+  other people sharing the note, calendar or board can see. They have no
+  admin switch; each is classified as a write the client confirms and is
+  refused for an object the user cannot edit. The note and event writes
+  go under `If-Match`; the Deck card write-back has no precondition
+  (pinned in `UNCONDITIONAL_PUTS`). Contract tests guard conditional
+  file writes, and `tests/contract/test_tool_classes.py` keeps every
+  tool classified.
 - Mail is strictly read only, asserted the same way: the family that adds
   the widest untrusted input adds no capability in return.
 
@@ -162,9 +169,15 @@ the blast radius instead: the user's own rights as ceiling, no tool
 for deleting, moving, renaming or re-sharing files, optional `files_update`
 replacements protected by a matching ETag, the one direct outgoing channel
 (`talk_send`) switchable off instance-wide, mail with deliberately no outgoing
-channel, and provenance returned as structured fields. The full chain,
-including the honest remainder about writes into shared containers and
-conditional replacements, is in privacy.md; the operator's checklist
+channel, and provenance returned as structured fields. `notes_update`,
+`calendar_update_event` and `deck_update_card` remain a further way to change
+existing content that other people sharing the note, calendar or board can
+see: they have no admin switch, each is classified as a write the client
+confirms and is refused for an object the user cannot edit, the note and event
+writes go under `If-Match`, and the Deck card write-back has no precondition
+(pinned in `UNCONDITIONAL_PUTS`). The full chain, including the honest
+remainder about writes into shared containers, conditional replacements and
+these updates, is in privacy.md; the operator's checklist
 against it is hardening.md.
 
 ## Residual risks, in plain sentences
