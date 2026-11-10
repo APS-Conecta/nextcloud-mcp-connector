@@ -61,6 +61,6 @@ External MCP clients are unchanged: OAuth and app passwords keep using
 - Unit, at the transport seam: `tests/unit/test_exapp_entry.py`,
   `test_a_proxied_call_runs_as_the_signed_user_whatever_else_it_names` and
   `test_a_proxied_call_without_a_user_is_refused`.
-- Live, against Nextcloud, AppAPI and HaRP in CI: the AppAPI proxy block of
+- Live, against Nextcloud, AppAPI and HaRP (compose.exapp.yml): the AppAPI proxy block of
   `tests/integration/test_permission_fidelity_exapp.py`, where an ExApp signature for bob does
   not find alice's file and a signature without a user is refused.
