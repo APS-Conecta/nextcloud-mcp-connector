@@ -20,10 +20,11 @@ so it stays unset and is not even named here, which keeps the grep gate honest.
 import functools
 import importlib
 import json
+import logging
 import pkgutil
 import time
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from mcp.server import MCPServer
@@ -38,6 +39,7 @@ from ..errors import (
     REASON_UNSPECIFIED,
     ToolError,
 )
+from ..nextcloud.clients.ocs import ocs_post, parse_ocs
 
 __all__ = [
     "CREATE_ONLY",
@@ -48,6 +50,16 @@ __all__ = [
     "graceful",
     "mcp",
 ]
+
+logger = logging.getLogger("mcp_connector.server")
+
+#: The route of APS-Conecta/auditoria that puts one write into Nextcloud's audit log.
+AUDIT_PATH = "/apps/auditoria/api/v1/escrituras"
+
+#: What a write's answer says when that route did not record it (gestion-aio#106).
+AUDIT_UNRECORDED = (
+    "Not recorded in Nextcloud's audit log. The write itself ran: do not repeat it, tell the user."
+)
 
 # (None, None) unless a static bearer is configured. The SDK rejects one without the
 # other with a ValueError in the constructor, so they are built as a pair.
@@ -120,6 +132,10 @@ def graceful[T](fn: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
     forbids. And ``record.note`` never raises, which is what keeps the branch honest: an
     ``await`` in a ``finally`` that raises would replace the exception on its way out with
     its own (T-18-17).
+
+    A write that ran is then recorded in Nextcloud's audit log as well (gestion-aio#106):
+    a write is every tool not annotated ``READ_ONLY``, so a new write, an APS app's
+    included, is recorded without a list of its own.
     """
 
     @functools.wraps(fn)
@@ -129,7 +145,7 @@ def graceful[T](fn: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
         outcome: str = OUTCOME_OK
         reason: str | None = None
         try:
-            return await fn(*args, **kwargs)
+            result = await fn(*args, **kwargs)
         except ToolError as exc:
             outcome, reason = OUTCOME_REJECTED, getattr(exc, "reason", REASON_UNSPECIFIED)
             # The SDK's own ToolError marks a failure the tool anticipated: the message
@@ -156,12 +172,36 @@ def graceful[T](fn: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
             raise
         finally:
             await record.note(ctx, fn.__name__, outcome, reason, time.perf_counter() - started)
+        if fn.__name__ in _WRITES and isinstance(result, str):
+            return cast(T, await _audited(ctx, fn.__name__, result))
+        return result
 
     # An explicit marker, and not ``fn.__code__.co_name == "wrapper"``: that name is the one
     # every decorator in the world gives its inner function, so the check would pass for a
     # tool that carries some other wrapper and no recording at all.
     wrapper.__mcp_audited__ = True  # type: ignore[attr-defined]
     return wrapper
+
+
+async def _audited(ctx: Any, tool: str, result: str) -> str:
+    """Record one write that ran in Nextcloud's audit log, through APS-Conecta/auditoria.
+
+    The route refuses every caller but this ExApp and takes the user from the request
+    Nextcloud authenticated, so the call goes out with this call's own credentials and
+    names the tool and the object alone: the answer's ``id``, or a file's ``path``, never
+    any content. A failure leaves the write's answer a success that says it went
+    unrecorded, so the write is never repeated, and the log names the tool.
+    """
+    written = json.loads(result)
+    try:
+        clients = deps.resolve_clients(ctx)
+        entry = {"tool": tool, "objectId": str(written.get("id", written.get("path", "")))}
+        parse_ocs(await ocs_post(clients.client, clients.creds, AUDIT_PATH, entry), AUDIT_PATH)
+    except Exception as exc:
+        # The type only, never the message: it can carry the URL (T-01-07).
+        logger.warning("the audit log did not record a write of %s: %s", tool, type(exc).__name__)
+        return compact({**written, "audit": AUDIT_UNRECORDED})
+    return result
 
 
 def bundle_names() -> list[str]:
@@ -249,3 +289,8 @@ def _load_registrations() -> None:
 
 _load_registrations()
 _diet_tool_schemas()
+
+#: The tools whose calls graceful records in Nextcloud's audit log: every write.
+_WRITES = frozenset(
+    tool.name for tool in mcp._tool_manager.list_tools() if tool.annotations != READ_ONLY
+)

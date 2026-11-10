@@ -150,6 +150,14 @@ jobs:
         run: |
           set -a && . ./.env.exapp && set +a
           uv run pytest tests/integration/test_appapi_users_list.py -m integration
+      - name: The audit app on the same instance (gestion-aio#106)
+        # Last, because it restarts Nextcloud. auditoria allows Nextcloud 34 only, so the
+        # Nextcloud 35 job below does not install it.
+        run: bash scripts/install_auditoria.sh
+      - name: Each write over the AppAPI proxy leaves one audit.log entry (gestion-aio#106)
+        run: |
+          set -a && . ./.env.exapp && set +a
+          uv run pytest tests/integration/test_audit_log_live.py -m integration
       - name: Topology and ExApp logs on failure
         if: failure()
         run: |
