@@ -190,17 +190,21 @@ async def _audited(ctx: Any, tool: str, result: str) -> str:
     Nextcloud authenticated, so the call goes out with this call's own credentials and
     names the tool and the object alone: the answer's ``id``, or a file's ``path``, never
     any content. A failure leaves the write's answer a success that says it went
-    unrecorded, so the write is never repeated, and the log names the tool.
+    unrecorded, so the write is never repeated, and the log names the tool. An answer that
+    is no object names no object, so it goes unrecorded the same way, wrapped as ``result``.
     """
-    written = json.loads(result)
+    written: Any = result
     try:
+        written = json.loads(result)
         clients = deps.resolve_clients(ctx)
         entry = {"tool": tool, "objectId": str(written.get("id", written.get("path", "")))}
         parse_ocs(await ocs_post(clients.client, clients.creds, AUDIT_PATH, entry), AUDIT_PATH)
     except Exception as exc:
         # The type only, never the message: it can carry the URL (T-01-07).
         logger.warning("the audit log did not record a write of %s: %s", tool, type(exc).__name__)
-        return compact({**written, "audit": AUDIT_UNRECORDED})
+        if isinstance(written, dict):
+            return compact({**written, "audit": AUDIT_UNRECORDED})
+        return compact({"result": written, "audit": AUDIT_UNRECORDED})
     return result
 
 

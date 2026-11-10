@@ -166,3 +166,22 @@ async def test_a_failed_audit_is_said_in_the_answer_and_logged_and_the_write_run
     assert "audit log" in said["audit"]
     assert write.call_count == 1
     assert "estadistica_api_crear_pregunta" in caplog.text
+
+
+@respx.mock
+@pytest.mark.anyio
+async def test_a_write_whose_answer_is_not_an_object_stays_a_success_that_says_so(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    write = respx.post(PREGUNTAS).mock(return_value=httpx.Response(201, json=envelope([], 201)))
+    respx.post(AUDIT).mock(return_value=httpx.Response(200, json=envelope([])))
+
+    with caplog.at_level(logging.WARNING):
+        result = await call(
+            "estadistica_api_crear_pregunta", {"titulo": "Atenciones", "consulta": {}}
+        )
+
+    assert not result.is_error, result.content
+    assert "audit log" in answer(result)["audit"]
+    assert write.call_count == 1
+    assert "estadistica_api_crear_pregunta" in caplog.text
