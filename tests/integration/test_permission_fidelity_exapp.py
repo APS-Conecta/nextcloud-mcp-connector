@@ -66,7 +66,7 @@ import os
 import uuid
 import warnings
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from typing import Any
 
 import httpx
@@ -102,20 +102,25 @@ def _basic(user: str, secret: str) -> str:
 
 
 @asynccontextmanager
-async def _mcp_session(base: str, user: str, secret: str) -> AsyncIterator[Client]:
-    """An MCP session over Streamable HTTP against the ExApp, authenticated as one user.
+async def _mcp_session_at(url: str, headers: dict[str, str]) -> AsyncIterator[Client]:
+    """An MCP session over Streamable HTTP at ``url``, every request carrying ``headers``.
 
-    The Basic header lives on the httpx client (mcp 2.x has no headers argument on the
-    transport), so every request of the session carries this user's app password to HaRP.
+    The headers live on the httpx client (mcp 2.x has no headers argument on the
+    transport), so every request of the session carries the same credential.
     """
-    url = base.rstrip("/") + EXAPP_MCP_PATH
     async with httpx2.AsyncClient(
-        headers={"Authorization": _basic(user, secret)},
-        timeout=httpx2.Timeout(30.0, read=300.0),
+        headers=headers, timeout=httpx2.Timeout(30.0, read=300.0)
     ) as http_client:
         transport = streamable_http_client(url, http_client=http_client)
         async with Client(transport) as client:
             yield client
+
+
+def _mcp_session(base: str, user: str, secret: str) -> AbstractAsyncContextManager[Client]:
+    """An MCP session against the ExApp over HaRP, with this user's app password."""
+    return _mcp_session_at(
+        base.rstrip("/") + EXAPP_MCP_PATH, {"Authorization": _basic(user, secret)}
+    )
 
 
 def _payload(result: Any) -> dict[str, Any]:
@@ -332,23 +337,12 @@ def _signed_for(exapp_env: dict[str, str], user: str) -> dict[str, str]:
     )
 
 
-@asynccontextmanager
-async def _proxy_session(exapp_env: dict[str, str], user: str) -> AsyncIterator[Client]:
-    """An MCP session through Nextcloud's AppAPI proxy, signed for one user."""
-    url = exapp_env["base_url"].rstrip("/") + PROXY_MCP_PATH
-    timeout = httpx2.Timeout(30.0, read=300.0)
-    async with (
-        httpx2.AsyncClient(headers=_signed_for(exapp_env, user), timeout=timeout) as http_client,
-        Client(streamable_http_client(url, http_client=http_client)) as client,
-    ):
-        yield client
-
-
 async def test_alice_finds_her_own_file_over_the_appapi_proxy(
     exapp_env: dict[str, str], alices_content: dict[str, str]
 ) -> None:
     """Positive control: the proxy carries a whole MCP session for the signed user."""
-    async with _proxy_session(exapp_env, exapp_env["alice"]) as c:
+    url = exapp_env["base_url"].rstrip("/") + PROXY_MCP_PATH
+    async with _mcp_session_at(url, _signed_for(exapp_env, exapp_env["alice"])) as c:
         result = _payload(await c.call_tool("files_search", {"query": alices_content["marker"]}))
 
     paths = {item["path"] for item in result["items"]}
@@ -359,8 +353,9 @@ async def test_bob_does_not_find_alices_file_over_the_appapi_proxy_even_naming_h
     exapp_env: dict[str, str], alices_content: dict[str, str]
 ) -> None:
     """Leak test: a call signed for bob runs as bob, whichever user its arguments name."""
+    url = exapp_env["base_url"].rstrip("/") + PROXY_MCP_PATH
     arguments = {"query": alices_content["marker"], "user": exapp_env["alice"]}
-    async with _proxy_session(exapp_env, exapp_env["bob"]) as c:
+    async with _mcp_session_at(url, _signed_for(exapp_env, exapp_env["bob"])) as c:
         result = _payload(await c.call_tool("files_search", arguments))
 
     assert result["items"] == [], f"bob sees alice's file over the proxy: {result!r}"
