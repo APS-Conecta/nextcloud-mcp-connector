@@ -184,7 +184,9 @@ Derselbe Server spricht Streamable HTTP für entfernte Clients, unter `POST /mcp
 Umgebungsvariable und die drei Fehler, die wirklich vorkommen:
 [docs/client-setup.md](docs/client-setup.md). OAuth für die Administration:
 [docs/oauth-setup.md](docs/oauth-setup.md). Automatisierungsplattformen sind auch Clients,
-mit einer OAuth-Verbindung je Person: [docs/n8n-setup.md](docs/n8n-setup.md).
+mit einer OAuth-Verbindung je Person: [docs/n8n-setup.md](docs/n8n-setup.md). Der Context
+Agent von Nextcloud ruft über den AppAPI-Proxy als fragender Nutzer auf:
+[docs/context-agent.md](docs/context-agent.md).
 
 ![Verbindungsseite mit zwei verbundenen Assistenten](docs/screenshots/connections-page-v2.png)
 

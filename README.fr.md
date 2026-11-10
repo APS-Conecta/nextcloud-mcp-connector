@@ -191,6 +191,8 @@ d'environnement et les trois erreurs qui surviennent vraiment :
 [docs/client-setup.md](docs/client-setup.md). OAuth pour l'administration :
 [docs/oauth-setup.md](docs/oauth-setup.md). Les plateformes d'automatisation sont aussi des
 clients, avec une connexion OAuth par personne : [docs/n8n-setup.md](docs/n8n-setup.md).
+Le Context Agent de Nextcloud appelle via le proxy AppAPI, comme l'utilisateur qui demande :
+[docs/context-agent.md](docs/context-agent.md).
 
 ![Page des connexions avec deux assistants connectés](docs/screenshots/connections-page-v2.png)
 
