@@ -13,11 +13,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- APS app tools (APS-Conecta/gestion-aio#93): with `NC_MCP_APP_TOOLS=on`, every
-  operation an APS app marks with `x-aps-ai` in its `openapi.json` becomes a tool that
-  acts as the signed-in account, a read or a write as marked. Unmarked operations,
-  deletes and admin routes never become tools. Estadística's document ships with the
-  connector: 9 reads and 4 writes. Off by default, so the default tool list is unchanged.
+- APS app tools (APS-Conecta/gestion-aio#93): every operation an APS app marks with
+  `x-aps-ai` in its `openapi.json` becomes a tool of the default surface that acts as the
+  signed-in account, a read or a write as marked. Unmarked operations, deletes and admin
+  routes never become tools. Estadística's document ships with the connector: 9 reads and
+  4 writes.
 
 ## [0.6.2] - 2026-10-22
 

@@ -16,7 +16,7 @@ import subprocess
 import sys
 
 import pytest
-from test_app_tool_markings import ESTADISTICA_READS, ESTADISTICA_WRITES
+from test_app_tool_markings import ESTADISTICA_TOOLS
 from test_tool_surface import EXPECTED_TOOLS
 
 from mcp_connector.server import bundle_names
@@ -46,7 +46,8 @@ BUNDLE_TOOLS: dict[str, frozenset[str]] = {
     "talk": frozenset({"talk_browse", "talk_send"}),
 }
 
-ESTADISTICA_TOOLS = ESTADISTICA_READS | ESTADISTICA_WRITES
+# No bundle carries the APS app tools (gestion-aio#93), so switching bundles off keeps them.
+DEFAULT_TOOLS = EXPECTED_TOOLS | ESTADISTICA_TOOLS
 
 _LIST_TOOLS = """
 import asyncio, json, sys
@@ -110,11 +111,11 @@ def test_the_bundles_cover_the_tool_surface_exactly_once() -> None:
 
 
 def test_without_the_variable_every_tool_is_registered() -> None:
-    assert _tools(None) == EXPECTED_TOOLS
+    assert _tools(None) == DEFAULT_TOOLS
 
 
 def test_mail_and_calendar_switched_off() -> None:
-    expected = EXPECTED_TOOLS - BUNDLE_TOOLS["mail"] - BUNDLE_TOOLS["calendar"]
+    expected = DEFAULT_TOOLS - BUNDLE_TOOLS["mail"] - BUNDLE_TOOLS["calendar"]
     assert _tools("mail,calendar") == expected
 
 
@@ -123,7 +124,7 @@ def test_chatgpt_can_be_switched_off_in_the_oauth_mode() -> None:
     assert "search" not in tools
     assert "fetch" not in tools
     assert {"prepare_context", "unified_search"} <= tools
-    assert tools == EXPECTED_TOOLS - BUNDLE_TOOLS["chatgpt"]
+    assert tools == DEFAULT_TOOLS - BUNDLE_TOOLS["chatgpt"]
 
 
 def test_switching_bundles_off_keeps_their_logic_importable() -> None:
@@ -134,10 +135,9 @@ def test_switching_bundles_off_keeps_their_logic_importable() -> None:
     )
 
 
-def test_the_app_tools_join_the_surface_only_when_switched_on() -> None:
-    """gestion-aio#93: off by default, so the surface above and its budget stay as they are."""
-    assert _tools(None, NC_MCP_APP_TOOLS="on") == EXPECTED_TOOLS | ESTADISTICA_TOOLS
-    assert _tools(None, NC_MCP_APP_TOOLS="off") == EXPECTED_TOOLS
+def test_the_estadistica_tools_are_on_the_default_server() -> None:
+    """gestion-aio#93: no switch, so the Suite offers Estadística's tools as it starts."""
+    assert _tools(None) >= ESTADISTICA_TOOLS
 
 
 def test_an_unknown_name_stops_the_start() -> None:
@@ -150,4 +150,4 @@ def test_an_unknown_name_stops_the_start() -> None:
 
 @pytest.mark.parametrize("bundle", sorted(BUNDLE_TOOLS))
 def test_each_bundle_switches_off_exactly_its_tools(bundle: str) -> None:
-    assert _tools(bundle) == EXPECTED_TOOLS - BUNDLE_TOOLS[bundle]
+    assert _tools(bundle) == DEFAULT_TOOLS - BUNDLE_TOOLS[bundle]

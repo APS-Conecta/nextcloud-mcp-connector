@@ -49,8 +49,6 @@ ENV_PUBLIC_URL = "NC_MCP_PUBLIC_URL"
 ENV_TALK_SEND = "NC_MCP_TALK_SEND"
 ENV_FILES_ROOT = "NC_MCP_FILES_ROOT"
 ENV_FILES_UPDATE = "NC_MCP_FILES_UPDATE"
-# Builds the APS app tools from the shipped OpenAPI documents (gestion-aio#93).
-ENV_APP_TOOLS = "NC_MCP_APP_TOOLS"
 # Comma separated tool bundle names whose tools are not registered (issue #15).
 ENV_DISABLED_TOOLS = "NC_MCP_DISABLED_TOOLS"
 
@@ -736,16 +734,6 @@ def files_update_enabled(env: Mapping[str, str] | None = None) -> bool:
         ", ".join(sorted(_FALSE_VALUES)),
     )
     return False
-
-
-def app_tools_enabled(env: Mapping[str, str] | None = None) -> bool:
-    """Whether the APS app tools are built at all (gestion-aio#93). Off unless switched on.
-
-    Read once, when ``.server`` registers its tools. Anything but an understood true value
-    keeps them off, so a typo never adds writes nobody asked for.
-    """
-    source = os.environ if env is None else env
-    return (source.get(ENV_APP_TOOLS) or "").strip().lower() in _TRUE_VALUES
 
 
 def exchange_enabled(env: Mapping[str, str] | None = None) -> bool:

@@ -13,7 +13,7 @@ Four rules make a green run mean something:
 *   **The marker is never an argument (D-28-06).** Every argument set is asserted free of the
     marker before its call, so a marker in an answer can only come from the instance.
 *   **The registry is the plan.** ``set(PLAN) == registry`` against ``list_tools()``, and the
-    output says ``KANARIE <mode> geprüft <n> von <registry>`` with ``n == 23``.
+    output says ``KANARIE <mode> geprüft <n> von <registry>`` with ``n == 39``.
 *   **The control marker must show.** The untagged control file and note carry a second
     marker; in the normal state every reader answer that has to show them must show it, or an
     empty index or a wrong container would end in a green canary (T-28-101).
@@ -47,6 +47,7 @@ import topology
 from mcp import Client
 from mcp.types import CallToolResult, TextContent
 from result_shapes import leaks, surfaces
+from test_app_tool_markings import ESTADISTICA_TOOLS
 
 from mcp_connector import paging
 from mcp_connector.server import mcp
@@ -60,7 +61,7 @@ from mcp_connector.tools import withhold
 pytestmark = [pytest.mark.integration, pytest.mark.anyio]
 
 RAW = cw.RAW_DIR / "28-10-canary.txt"
-EXPECTED_TOOLS = 26
+EXPECTED_TOOLS = 26 + len(ESTADISTICA_TOOLS)
 MAX_PAGES = 50
 COMMAND = (
     "PYTHONUTF8=1 .venv/Scripts/python.exe -m pytest tests/integration/test_canary.py "
@@ -225,6 +226,9 @@ def plan(world: cw.World) -> dict[str, list[dict[str, Any]]]:
         # neutral write that needs no file reference at all.
         "tables_create_row": [{"table_id": world.table_id, "values": json.dumps({"Verweis": ""})}],
         "mail_browse": [{"level": "accounts"}],
+        # Estadística answers no Nextcloud file (tool_classes.UNAFFECTED) and this instance
+        # does not install it: one call without arguments each keeps the registry the plan.
+        **{name: [{}] for name in sorted(ESTADISTICA_TOOLS)},
     }
 
 

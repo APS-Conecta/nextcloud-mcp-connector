@@ -42,6 +42,7 @@ ESTADISTICA_WRITES = frozenset(
         "estadistica_api_editar_tablero",
     }
 )
+ESTADISTICA_TOOLS = ESTADISTICA_READS | ESTADISTICA_WRITES
 
 
 def _documents() -> list[tuple[str, dict[str, Any]]]:

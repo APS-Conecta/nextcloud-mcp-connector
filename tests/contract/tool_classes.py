@@ -18,6 +18,8 @@ is imported by name; ``pyproject.toml`` puts ``tests/contract`` on the import pa
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 
+from test_app_tool_markings import ESTADISTICA_TOOLS
+
 from mcp_connector.server import CREATE_ONLY, mcp
 
 # Tools whose answer can carry a name, a path, a content or an id of a Nextcloud file.
@@ -124,6 +126,11 @@ UNAFFECTED: dict[str, str] = {
     "mail_browse": (
         "Messages carry has_attachments only and the attachment list is dropped; mails are IMAP "
         "data, not Nextcloud files (tools/mail.py:459-507)."
+    ),
+    **dict.fromkeys(
+        sorted(ESTADISTICA_TOOLS),
+        "Answers Estadística's figures, preguntas and tableros from its own tables, never a "
+        "file's name, path, content or id (openapi/estadistica.json).",
     ),
 }
 
