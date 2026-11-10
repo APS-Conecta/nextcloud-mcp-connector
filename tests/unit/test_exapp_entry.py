@@ -35,6 +35,7 @@ from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
 from starlette.routing import Route
 from starlette.testclient import TestClient
+from test_app_tool_markings import ESTADISTICA_READS, ESTADISTICA_WRITES
 
 from mcp_connector import config, entry_exapp, entry_http
 from mcp_connector.audit import record as audit_record
@@ -63,6 +64,8 @@ from mcp_connector.oauth.metadata import (
 )
 from mcp_connector.oauth.provider import NextcloudOAuthProvider, auth_routes
 from mcp_connector.oauth.verifier import OAUTH_STATE_ATTR, OAuthIdentity, StoreTokenVerifier
+from mcp_connector.server import apps as server_apps
+from mcp_connector.server import mcp
 
 APP_ID = "mcp_connector"
 APP_SECRET = "app-secret-test"
@@ -755,6 +758,36 @@ def test_a_proxied_call_without_a_user_is_refused() -> None:
 
     assert response.status_code == 401
     assert not nextcloud.called
+
+
+@respx.mock
+def test_an_estadistica_read_runs_as_the_signed_user(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """gestion-aio#93: an app tool reaches its app as the asking user, like every other tool."""
+    env, _ = with_a_local_store(SERVED_ENV, tmp_path, monkeypatch)
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    answer = {"ocs": {"meta": {"statuscode": 200}, "data": []}}
+    resumen = respx.get("http://nc.test/ocs/v2.php/apps/estadistica/api/v1/resumen").mock(
+        return_value=httpx.Response(200, json=answer)
+    )
+    respx.route(host="nc.test").mock(return_value=httpx.Response(404))
+    headers = {**PROXIED_HEADERS, **STATIC_ADMIN, **appapi_headers(user="alice")}
+    server_apps.register(mcp)
+
+    try:
+        with TestClient(entry_exapp.build_exapp_app(env)) as client:
+            response = call_tool(client, headers, "estadistica_api_resumen", {"user": "bob"})
+    finally:
+        for name in ESTADISTICA_READS | ESTADISTICA_WRITES:
+            mcp.remove_tool(name)
+
+    assert response.status_code == 200
+    sent = resumen.calls.last.request
+    assert sent.headers["authorization-app-api"] == headers["AUTHORIZATION-APP-API"]
+    assert "authorization" not in sent.headers
+    assert "user" not in sent.url.params
 
 
 def test_a_duplicated_route_wrap_is_a_build_error(monkeypatch: pytest.MonkeyPatch) -> None:

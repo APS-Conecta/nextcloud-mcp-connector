@@ -207,6 +207,12 @@ _.used_bytes_after
 # because fn.__code__.co_name == "wrapper" would pass for any decorator in the world.
 _.__mcp_audited__
 
+# --- The signature of an APS app tool ---------------------------------------------------
+# server/apps.py sets __signature__ on each tool function it builds from an OpenAPI
+# operation. Its reader is inspect.signature inside the MCP SDK, which builds the tool's
+# input schema and argument check from it (gestion-aio#93); no call in src reads it.
+_.__signature__
+
 # --- The block list of audit/allowlist.py -----------------------------------------------
 # PARAM_ALLOWLIST is gone from this list with plan 18-06, which is the plan that reads it:
 # audit/record.py intersects the set argument names of a call with it before it writes a row.

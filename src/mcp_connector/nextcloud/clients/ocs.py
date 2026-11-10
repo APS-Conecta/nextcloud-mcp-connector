@@ -115,6 +115,26 @@ async def ocs_post(
     )
 
 
+async def ocs_put(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    path: str,
+    json_body: Mapping[str, Any],
+) -> httpx.Response:
+    """PUT to an OCS endpoint: an APS app's update of one of its objects (gestion-aio#93).
+
+    Same rules as :func:`ocs_post`. No ``If-Match``: an OCS app route carries no ETag, and
+    the app itself decides who may change the object (Estadística answers anyone but its
+    creator or its administrators with a 403), acting on the user these credentials name.
+    """
+    return await client.put(
+        ocs_url(creds, path),
+        json=dict(json_body),
+        headers={**OCS_HEADERS, "Content-Type": "application/json"},
+        auth=creds.auth(),
+    )
+
+
 async def list_search_providers(
     client: httpx.AsyncClient, creds: Credentials
 ) -> list[dict[str, Any]]:

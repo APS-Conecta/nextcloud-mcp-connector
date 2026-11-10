@@ -140,6 +140,23 @@ missing app is answered in one sentence, never with an empty result.
 - ChatGPT connectors expect the `chatgpt` bundle (`search`, `fetch`).
 - The ExApp declares the variable and logs at start which bundles are switched off.
 
+## APS app tools
+
+- Variable: `NC_MCP_APP_TOOLS`, read at start. Default: off, and the tool list above stays
+  exactly as it is. Set it like `NC_MCP_DISABLED_TOOLS`, for example
+  `--env "NC_MCP_APP_TOOLS=on"`.
+- When on, every operation an APS app marks for the AI in its `openapi.json`
+  (`x-aps-ai: read` or `write`) is one tool: its name is the app id plus the operation's
+  `operationId`, its description the operation's `summary`. The connector ships each app's
+  document under `src/mcp_connector/openapi/`; today Estadística's, with 9 reads and 4 writes.
+  A newly marked operation needs only a refreshed copy of that document.
+- Never a tool: an unmarked operation, a DELETE, an admin route, or a PUT marked as a read.
+- A read is annotated read only, a marked POST create-only, and a marked PUT updates the
+  app's object as far as the app lets the signed-in account, without an ETag. Every call acts
+  as the signed-in account.
+- Outside the byte budget of the default surface: Estadística's document adds about 9.8 kB
+  to `tools/list`.
+
 ## Excluding folders: the kein-ki tag
 
 Tag a folder or file with the collaborative tag `kein-ki` and the assistant no longer sees it or anything below it.

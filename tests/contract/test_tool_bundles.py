@@ -16,6 +16,7 @@ import subprocess
 import sys
 
 import pytest
+from test_app_tool_markings import ESTADISTICA_READS, ESTADISTICA_WRITES
 from test_tool_surface import EXPECTED_TOOLS
 
 from mcp_connector.server import bundle_names
@@ -44,6 +45,8 @@ BUNDLE_TOOLS: dict[str, frozenset[str]] = {
     "tables": frozenset({"tables_browse", "tables_create_row"}),
     "talk": frozenset({"talk_browse", "talk_send"}),
 }
+
+ESTADISTICA_TOOLS = ESTADISTICA_READS | ESTADISTICA_WRITES
 
 _LIST_TOOLS = """
 import asyncio, json, sys
@@ -129,6 +132,12 @@ def test_switching_bundles_off_keeps_their_logic_importable() -> None:
     assert tools.isdisjoint(
         BUNDLE_TOOLS["talk"] | BUNDLE_TOOLS["tables"] | BUNDLE_TOOLS["notes"] | BUNDLE_TOOLS["mail"]
     )
+
+
+def test_the_app_tools_join_the_surface_only_when_switched_on() -> None:
+    """gestion-aio#93: off by default, so the surface above and its budget stay as they are."""
+    assert _tools(None, NC_MCP_APP_TOOLS="on") == EXPECTED_TOOLS | ESTADISTICA_TOOLS
+    assert _tools(None, NC_MCP_APP_TOOLS="off") == EXPECTED_TOOLS
 
 
 def test_an_unknown_name_stops_the_start() -> None:
