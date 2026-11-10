@@ -11,8 +11,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-10
+
+The first release of the APS-Conecta fork. Its image is
+`ghcr.io/aps-conecta/mcp_connector`.
+
 ### Added
 
+- Update tools (APS-Conecta/gestion-aio#94): `notes_update`, `calendar_update_event` and
+  `deck_update_card` change a note, a single event or a Deck card the signed-in account may
+  edit, under the object's current version (If-Match for Notes and CalDAV). An object the
+  account cannot edit is refused before any write. `calendar_create_event` also refuses a
+  read-only calendar.
+- The Context Agent contract (APS-Conecta/gestion-aio#89): `docs/context-agent.md` defines how
+  Nextcloud's Context Agent calls the connector as the asking user through AppAPI.
 - APS app tools (APS-Conecta/gestion-aio#93): every operation an APS app marks with
   `x-aps-ai` in its `openapi.json` becomes a tool of the default surface that acts as the
   signed-in account, a read or a write as marked. Unmarked operations, deletes and admin
@@ -1042,7 +1054,8 @@ First release, submitted to the Nextcloud App Store.
   never sees more than that user sees in the web interface.
 - A privacy and data flow description, see [docs/privacy.md](docs/privacy.md).
 
-[Unreleased]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/APS-Conecta/nextcloud-mcp-connector/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/APS-Conecta/nextcloud-mcp-connector/compare/c287958...v0.7.0
 [0.6.2]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.5.1...v0.6.0
