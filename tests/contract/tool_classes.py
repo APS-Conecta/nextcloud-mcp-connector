@@ -83,7 +83,7 @@ FILE_WRITERS: dict[str, str] = {
     ),
     "notes_update": (
         "Replaces the content of a note file by its fileid after the guard of notes_read, "
-        "_visible_note (tools/notes.py:195-255)."
+        "_visible_note (tools/notes.py:195-223, :226-251)."
     ),
 }
 
@@ -99,7 +99,7 @@ UNAFFECTED: dict[str, str] = {
     ),
     "deck_browse": (
         "Answers id, title, stack, url and duedate only; description and attachments of a card "
-        "never leave the tool (tools/deck.py:243-250)."
+        "never leave the tool (tools/deck.py:246-253)."
     ),
     "deck_create_card": (
         "Answers id, title, url and duedate, and board and stack are digit ids "
@@ -107,11 +107,11 @@ UNAFFECTED: dict[str, str] = {
     ),
     "deck_update_card": (
         "Answers id, title, url and duedate of the card it changed; description and "
-        "attachments never leave the tool (tools/deck.py:130-186)."
+        "attachments never leave the tool (tools/deck.py:130-189)."
     ),
     "calendar_update_event": (
         "Answers the same fields as calendar_create_event and leaves ATTACH untouched in the "
-        "object, never parsed (tools/calendar.py:322-400)."
+        "object, never parsed (tools/calendar.py:322-410)."
     ),
     "contacts_search": (
         "Answers full_name, emails, phones, organization, addressbook and uid; no PHOTO, no URL "

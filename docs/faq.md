@@ -151,8 +151,14 @@ can actually be removed.
 One honest remainder stays with the switch off: the create-only writes (a file, a
 card, a row) cannot address anyone, but they can land in a folder, a board or a
 table that is shared with other people, and content written there is visible to
-everyone the container is shared with. Closing that path is not a setting of this
-app; it is a review of what the connected accounts share.
+everyone the container is shared with. `notes_update`, `calendar_update_event` and
+`deck_update_card` are a further way to change existing content that other people
+sharing the note, calendar or board can see. They have no admin switch; each is
+classified as a write the client confirms and is refused for an object the user
+cannot edit. The note and event writes go under `If-Match`; the Deck card
+write-back has no precondition (pinned in `UNCONDITIONAL_PUTS`). Closing these
+paths is not a setting of this app; it is a review of what the connected accounts
+share.
 
 Mail stays readable with the switch off, and that is the point rather than an
 oversight. Mail has no outgoing channel of its own: it is read only in this app,

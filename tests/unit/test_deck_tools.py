@@ -496,3 +496,22 @@ async def test_update_card_refuses_a_short_id_or_nothing_to_change_before_any_re
             await deck_tools.update_card(clients, card_id=card_id, **fields)
 
     assert deck_api.call_count == 0
+
+
+@pytest.mark.anyio
+async def test_update_card_writes_to_the_stack_the_card_is_in_now_not_the_one_in_a_stale_id(
+    clients: NcClients,
+) -> None:
+    """Deck moves a card to the route's stack on PUT, so a stale id must not move it back."""
+    moved = {**CARD_101, "id": 104, "stackId": 12}
+    with respx.mock(assert_all_called=True) as mock:
+        mock_capabilities(mock)
+        mock.get(BOARD_URL).mock(return_value=httpx.Response(200, json=board_with(edit=True)))
+        mock.get(f"{CARDS_URL}/104").mock(return_value=httpx.Response(200, json=moved))
+        write = mock.put(f"{STACKS_URL}/12/cards/104").mock(
+            return_value=httpx.Response(200, json={**moved, "title": "Neu"})
+        )
+        result = await deck_tools.update_card(clients, card_id="card:2:11:104", title="Neu")
+
+    assert write.call_count == 1
+    assert result["id"] == "card:2:12:104"

@@ -164,6 +164,9 @@ async def update_card(
             reason=REASON_PERMISSION_DENIED,
         )
     current = await deck_client.get_card(clients.client, clients.creds, board, stack, card)
+    # Deck reads the card by its id alone but moves it to the route's stack on PUT, so the
+    # write goes to the stack the card is in now: a stale id must not move it back.
+    stack = current.get("stackId") or stack
     stored = await deck_client.update_card(
         clients.client,
         clients.creds,
@@ -177,7 +180,7 @@ async def update_card(
     )
 
     result: dict[str, Any] = {
-        "id": ids.encode_card(board, stored.get("stackId") or stack, card),
+        "id": ids.encode_card(board, stack, card),
         "title": str(stored.get("title") or ""),
         "url": deck_client.web_url(clients.creds, card),
     }

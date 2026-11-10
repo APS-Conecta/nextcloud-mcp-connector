@@ -70,6 +70,13 @@ damage:
   `NC_MCP_FILES_UPDATE` is enabled, `files_update` can replace an
   existing UTF-8 text file only with a matching ETag; contract tests
   require conditional headers on file PUT routes,
+- `notes_update`, `calendar_update_event` and `deck_update_card` are a
+  further way to change existing content that other people sharing the
+  note, calendar or board can see. They have no admin switch; each is
+  classified as a write the client confirms and is refused for an object
+  the user cannot edit. The note and event writes go under `If-Match`;
+  the Deck card write-back has no precondition (pinned in
+  `UNCONDITIONAL_PUTS`),
 - content is returned with its origin as structured fields, so the client can
   tell where text came from,
 - the outgoing channel can be closed instance-wide (section 4).
