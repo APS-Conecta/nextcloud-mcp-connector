@@ -18,6 +18,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   signed-in account, a read or a write as marked. Unmarked operations, deletes and admin
   routes never become tools. Estadística's document ships with the connector: 9 reads and
   4 writes.
+- Writes in Nextcloud's audit log (APS-Conecta/gestion-aio#106): after each write that
+  runs, the connector calls APS-Conecta/auditoria's route as the signed-in account with the
+  tool's name and the object's id, never content. Reads call nothing. A write the route did
+  not record answers with an `audit` note and a logged warning, and is never repeated.
 
 ## [0.6.2] - 2026-10-22
 

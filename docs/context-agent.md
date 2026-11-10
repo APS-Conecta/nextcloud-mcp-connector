@@ -57,9 +57,22 @@ user from the agent, the model or a tool argument.
   any MCP code runs, and nothing reaches Nextcloud. The 401 carries the OAuth discovery
   challenge because the same route serves OAuth clients; to the agent it is a refusal.
 - The per account switch of the connections page applies as on every other way in.
+- After each write that runs, it records the write in Nextcloud's audit log through
+  APS-Conecta/auditoria: `POST /ocs/v2.php/apps/auditoria/api/v1/escrituras` as the same
+  user, with the tool's name and the object's id (the answer's `id`, or a file's `path`),
+  never content. A write is every tool not annotated read-only; reads call nothing. When the
+  route does not record it, the write's answer carries an `audit` note saying so, the
+  connector logs a warning, and the write is not repeated. The entry reaches audit.log only
+  with admin_audit enabled and its info lines let through
+  (`occ config:system:set log.condition apps 0 --value=admin_audit`).
 
-External MCP clients are unchanged: OAuth and app passwords keep using
-`/exapps/mcp_connector/mcp` ([client-setup.md](client-setup.md)).
+External MCP clients keep using `/exapps/mcp_connector/mcp`
+([client-setup.md](client-setup.md)). An app password there is resolved by HaRP into an
+AppAPI-signed user, and so is a token-exchange identity, so their writes are recorded like the
+agent's. Writes over an OAuth sign-in (the connection's own app password) and in the standalone
+modes (HTTP passthrough, static bearer, stdio) are not recorded, because auditoria admits only
+calls AppAPI signs for `mcp_connector`. Each such write still runs, its answer carries the
+`audit` note, and the connector logs a warning.
 
 ## Proof
 
@@ -69,3 +82,6 @@ External MCP clients are unchanged: OAuth and app passwords keep using
 - Live, against Nextcloud, AppAPI and HaRP (compose.exapp.yml): the AppAPI proxy block of
   `tests/integration/test_permission_fidelity_exapp.py`, where an ExApp signature for bob does
   not find alice's file and a signature without a user is refused.
+- The audit call: `tests/unit/test_write_audit.py` at the tool call, and live
+  `tests/integration/test_audit_log_live.py`, where a write over the proxy leaves exactly one
+  audit.log entry naming alice, the tool and the object, and a read leaves none.
