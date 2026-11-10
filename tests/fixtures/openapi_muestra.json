@@ -1,0 +1,62 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "muestra", "version": "1.0.0"},
+  "paths": {
+    "/ocs/v2.php/apps/muestra/api/v1/notas": {
+      "get": {
+        "operationId": "api-notas",
+        "summary": "Todas las notas del usuario.",
+        "parameters": [
+          {"name": "desde", "in": "query", "description": "la primera fecha, AAAA-MM-DD", "schema": {"type": "string"}},
+          {"name": "OCS-APIRequest", "in": "header", "required": true, "schema": {"type": "boolean", "default": true}}
+        ],
+        "x-aps-ai": "read"
+      },
+      "post": {
+        "operationId": "api-crear-nota",
+        "summary": "Crea una nota.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {
+          "type": "object", "required": ["titulo"],
+          "properties": {"titulo": {"type": "string", "description": "el título de la nota"}}
+        }}}},
+        "x-aps-ai": "write"
+      }
+    },
+    "/ocs/v2.php/apps/muestra/api/v1/notas/{id}": {
+      "get": {
+        "operationId": "api-nota",
+        "summary": "Una nota.",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}]
+      },
+      "put": {
+        "operationId": "api-editar-nota",
+        "summary": "Cambia una nota.",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "requestBody": {"content": {"application/json": {"schema": {
+          "type": "object",
+          "properties": {"titulo": {"type": "string", "description": "el título nuevo"}}
+        }}}},
+        "x-aps-ai": "write"
+      },
+      "delete": {
+        "operationId": "api-eliminar-nota",
+        "summary": "Elimina una nota.",
+        "parameters": [{"name": "id", "in": "path", "required": true, "schema": {"type": "integer"}}],
+        "x-aps-ai": "write"
+      }
+    },
+    "/ocs/v2.php/apps/muestra/api/v1/ajustes": {
+      "get": {
+        "operationId": "api-ajustes",
+        "summary": "Los ajustes de la app.",
+        "description": "This endpoint requires admin access",
+        "x-aps-ai": "read"
+      },
+      "put": {
+        "operationId": "api-guardar-ajustes",
+        "summary": "Guarda los ajustes como si fuera una lectura.",
+        "x-aps-ai": "read"
+      }
+    }
+  }
+}

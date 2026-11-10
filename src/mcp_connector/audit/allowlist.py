@@ -39,6 +39,10 @@ FORBIDDEN_PARAMS: frozenset[str] = frozenset(
 #: :data:`FORBIDDEN_PARAMS`. A tool without an entry here is a failure of the contract test
 #: and not a silently empty set, because an empty set would look like a decision.
 #:
+#: The APS app tools (gestion-aio#93, ``server/apps.py``) are the one decided exception: they
+#: have no entry and record no argument name, because their fields are the app's, and a newly
+#: marked operation must reach the AI without a change here.
+#:
 #: The name has to be spelled in capitals, and that is not taste:
 #: ``tests/contract/test_no_destructive_calls.py:635`` takes ``target.id.isupper()`` as the
 #: only exemption from the ban on module level mutable state (D-20), so a lowercase

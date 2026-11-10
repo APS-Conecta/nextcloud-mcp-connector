@@ -525,17 +525,22 @@ def test_file_updates_keep_create_and_compare_and_swap_puts_distinct() -> None:
 #: AppAPI control plane, never user content. The Deck card update (gestion-aio#94) is the
 #: third, a review event: Deck's card route honours no ``If-Match``, so a header there would
 #: be the vacuous precondition this gate exists to refuse. The tool reads the card right
-#: before and writes every field back as read, except the ones the user named.
+#: before and writes every field back as read, except the ones the user named. The fourth,
+#: decided in gestion-aio#93, is the update of an APS app's own object over OCS: the route
+#: has no ETag to match, the app marked the operation as a write, and the app refuses anyone
+#: it does not let change the object. A fifth entry here is a review event.
 UNCONDITIONAL_PUTS = {
     ("nextcloud/clients/dav.py", "put_upload_chunk"),
     ("exapp/status.py", "report_init_progress"),
     ("nextcloud/clients/deck.py", "update_card"),
+    ("nextcloud/clients/ocs.py", "ocs_put"),
 }
 
 #: Every PUT call in the production code, counted. A new PUT that this gate somehow does
-#: not flag still changes the count, so it cannot slip in silently. Eight since the three
-#: update tools of gestion-aio#94 (notes and calendar under If-Match, Deck pinned above).
-EXPECTED_PUT_CALLS = 8
+#: not flag still changes the count, so it cannot slip in silently. Nine since the three
+#: update tools of gestion-aio#94 (notes and calendar under If-Match, Deck pinned above)
+#: and the APS app update over OCS of gestion-aio#93 (pinned above).
+EXPECTED_PUT_CALLS = 9
 
 
 def _usable_precondition(call: ast.Call) -> bool:

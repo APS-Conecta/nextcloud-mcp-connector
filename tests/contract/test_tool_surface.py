@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 from mcp import Client
+from test_app_tool_markings import ESTADISTICA_TOOLS, ESTADISTICA_WRITES
 
 from mcp_connector.server import mcp
 from mcp_connector.tools import mail as mail_tools
@@ -68,6 +69,10 @@ EXPECTED_TOOLS = {
     "search",
     "fetch",
 }
+
+# The default registry: the curated set plus the APS app tools of gestion-aio#93, which no
+# bundle carries and test_app_tool_markings.py freezes by name.
+SURFACE = EXPECTED_TOOLS | ESTADISTICA_TOOLS
 
 # The create-only paths. files_update is separately gated and uses conditional overwrite.
 # Mail adds
@@ -552,12 +557,13 @@ async def test_prepare_context_is_listed_as_a_bundling_read() -> None:
 
 @pytest.mark.anyio
 async def test_the_curated_set_is_complete_and_only_the_chatgpt_profile_has_a_schema() -> None:
-    """The whole surface in one assertion: 26 tools, and the diet holds for 24 of them."""
+    """The whole surface in one assertion: 39 tools, and the diet holds for 37 of them."""
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
-    assert set(tools) == EXPECTED_TOOLS
-    assert len(tools) == 26, "the curated set is twenty-six tools, no more and no fewer"
+    assert set(tools) == SURFACE
+    assert len(EXPECTED_TOOLS) == 26, "the curated set is twenty-six tools, no more and no fewer"
+    assert len(tools) == 39, "the twenty-six curated tools plus Estadística's thirteen"
 
     with_schema = {name for name, tool in tools.items() if tool.output_schema is not None}
     assert with_schema == STRUCTURED_TOOLS, (
@@ -605,10 +611,10 @@ async def test_the_byte_gate_counts_exactly_as_many_tools_as_this_file_freezes()
     payload = result.model_dump(by_alias=True, exclude_none=True, mode="json")
     counted = len(payload["tools"])
 
-    assert counted == len(EXPECTED_TOOLS), (
-        f"the byte gate measures {counted} tools, {len(EXPECTED_TOOLS)} are frozen here"
+    assert counted == len(SURFACE), (
+        f"the byte gate measures {counted} tools, {len(SURFACE)} are frozen here"
     )
-    assert {tool["name"] for tool in payload["tools"]} == EXPECTED_TOOLS
+    assert {tool["name"] for tool in payload["tools"]} == SURFACE
     assert await gate.main() == 0, (
         "the surface is over its byte budget or one tool is over the per tool ceiling; "
         "the gate prints which one"
@@ -747,7 +753,7 @@ async def test_every_tool_carries_honest_annotations() -> None:
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
-    assert set(tools) == EXPECTED_TOOLS, "the curated set is frozen (D-03 to D-09)"
+    assert set(tools) == SURFACE, "the curated set is frozen (D-03 to D-09)"
     assert CREATE_TOOLS < EXPECTED_TOOLS, "every write tool must be part of the curated set"
     assert UPDATE_TOOLS < EXPECTED_TOOLS, "every update tool must be part of the curated set"
 
@@ -761,6 +767,8 @@ async def test_every_tool_carries_honest_annotations() -> None:
             assert annotations.read_only_hint is False, f"{name} writes and must say so"
             assert annotations.destructive_hint is True, f"{name} replaces what was there"
             assert annotations.idempotent_hint is False
+        elif name in ESTADISTICA_WRITES:
+            assert annotations.read_only_hint is False, f"{name} writes and must say so"
         elif name in CREATE_TOOLS:
             assert annotations.read_only_hint is False, f"{name} writes and must say so"
             assert annotations.destructive_hint is False, (
@@ -796,7 +804,7 @@ async def test_no_input_schema_accepts_a_user_parameter() -> None:
     async with Client(mcp, raise_exceptions=True) as client:
         tools = {tool.name: tool for tool in (await client.list_tools()).tools}
 
-    assert set(tools) == EXPECTED_TOOLS, "the confused deputy check must cover all 26 schemas"
+    assert set(tools) == SURFACE, "the confused deputy check must cover all 39 schemas"
 
     findings: list[str] = []
     for name, tool in sorted(tools.items()):
@@ -831,7 +839,9 @@ async def test_the_readme_permission_table_matches_the_live_registry() -> None:
         documented[cells[0].strip("`")] = cells[1]
 
     optional_tools = {"files_update"}
-    assert set(documented) - optional_tools == set(tools), (
+    # The README's "APS app tools" section documents the app tools as one rule, never row by
+    # row, so a newly marked operation needs no README change (gestion-aio#93).
+    assert set(documented) - optional_tools == set(tools) - ESTADISTICA_TOOLS, (
         "the README's always-available tools must match the default registry"
     )
     assert optional_tools <= set(documented), "the README must document optional tools too"

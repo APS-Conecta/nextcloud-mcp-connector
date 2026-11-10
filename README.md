@@ -23,7 +23,7 @@ You bring the model, and no content leaves your server.
 ## What it does
 
 - 26 tools across nine app families: files, calendar, notes, Deck, contacts, Tables, Talk,
-  Mail and cloud wide search
+  Mail and cloud wide search, plus the APS app tools (today Estadística's 13)
 - OAuth 2.1 to the MCP authorization specification: dynamic client registration, PKCE S256,
   audience bound tokens, refresh rotation with reuse detection and immediate revocation.
   Claude.ai and ChatGPT are given one URL and never see a password or an app password
@@ -139,6 +139,18 @@ missing app is answered in one sentence, never with an empty result.
   `NC_MCP_FILES_ROOT` to keep content away from the assistant.
 - ChatGPT connectors expect the `chatgpt` bundle (`search`, `fetch`).
 - The ExApp declares the variable and logs at start which bundles are switched off.
+
+## APS app tools
+
+- Every operation an APS app marks for the AI in its `openapi.json` (`x-aps-ai: read` or
+  `write`) is one tool of the default surface: its name is the app id plus the operation's
+  `operationId`, its description the operation's `summary`. The connector ships each app's
+  document under `src/mcp_connector/openapi/`; today Estadística's, with 9 reads and 4 writes.
+  A newly marked operation needs only a refreshed copy of that document.
+- Never a tool: an unmarked operation, a DELETE, an admin route, or a PUT marked as a read.
+- A read is annotated read only, a marked POST create-only, and a marked PUT updates the
+  app's object as far as the app lets the signed-in account, without an ETag. Every call acts
+  as the signed-in account.
 
 ## Excluding folders: the kein-ki tag
 

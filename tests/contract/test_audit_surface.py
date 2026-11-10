@@ -23,6 +23,7 @@ from typing import Any
 
 import pytest
 from mcp import Client
+from test_app_tool_markings import ESTADISTICA_TOOLS
 
 from mcp_connector.audit.allowlist import FORBIDDEN_PARAMS, PARAM_ALLOWLIST
 from mcp_connector.server import mcp
@@ -50,7 +51,12 @@ async def _measured_surface() -> dict[str, set[str]]:
 @pytest.mark.anyio
 async def test_every_registered_tool_has_an_allowlist_entry() -> None:
     """A tool the allowlist never heard of would be recorded by nobody's decision."""
-    surface = await _measured_surface()
+    # The APS app tools record no argument name, the exception PARAM_ALLOWLIST documents.
+    surface = {
+        name: names
+        for name, names in (await _measured_surface()).items()
+        if name not in ESTADISTICA_TOOLS
+    }
 
     findings = [
         f"{name} has no allowlist entry" for name in sorted(surface) if name not in PARAM_ALLOWLIST

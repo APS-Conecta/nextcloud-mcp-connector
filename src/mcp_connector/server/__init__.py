@@ -243,6 +243,8 @@ def _load_registrations() -> None:
     for name in names:
         if name not in disabled:
             importlib.import_module(f"{__name__}.reg_{name}")
+    # The APS app tools (gestion-aio#93) are no bundle: every shipped app document is built.
+    importlib.import_module(f"{__name__}.apps").register(mcp)
 
 
 _load_registrations()

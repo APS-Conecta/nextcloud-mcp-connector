@@ -12,3 +12,11 @@ path = "**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 street1983nk"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# A copy of an APS app's openapi.json, as the app ships it (gestion-aio#93): the app's own
+# work under the app's licence, not this repository's.
+[[annotations]]
+path = "src/mcp_connector/openapi/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Daniel Espinoza (APS-Conecta/estadistica)"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
