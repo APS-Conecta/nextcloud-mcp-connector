@@ -66,8 +66,13 @@ user from the agent, the model or a tool argument.
   with admin_audit enabled and its info lines let through
   (`occ config:system:set log.condition apps 0 --value=admin_audit`).
 
-External MCP clients are unchanged: OAuth and app passwords keep using
-`/exapps/mcp_connector/mcp` ([client-setup.md](client-setup.md)).
+External MCP clients keep using `/exapps/mcp_connector/mcp`
+([client-setup.md](client-setup.md)). An app password there is resolved by HaRP into an
+AppAPI-signed user, and so is a token-exchange identity, so their writes are recorded like the
+agent's. Writes over an OAuth sign-in (the connection's own app password) and in the standalone
+modes (HTTP passthrough, static bearer, stdio) are not recorded, because auditoria admits only
+calls AppAPI signs for `mcp_connector`. Each such write still runs, its answer carries the
+`audit` note, and the connector logs a warning.
 
 ## Proof
 

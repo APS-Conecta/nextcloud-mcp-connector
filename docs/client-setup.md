@@ -350,6 +350,11 @@ What happens after you enter it:
    and what the connection may do, with an "Approve access" and a "Deny access" button.
 5. Approving sends the browser back to the client, which is connected from then on.
 
+Writes made over an OAuth connection do not reach Nextcloud's audit log: auditoria admits only
+calls AppAPI signs for the ExApp, and this connection signs in with its own app password. Each
+write still runs, and its answer carries an `audit` note saying it was not recorded
+([context-agent.md](context-agent.md)).
+
 The connection appears under **Settings, Security, Devices and sessions** with the name of
 the client, prefixed by `MCP Connector:`. Ending it there ends it immediately, and so does
 the client's own disconnect button.
