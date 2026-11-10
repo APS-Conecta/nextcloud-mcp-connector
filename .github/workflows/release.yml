@@ -64,6 +64,8 @@ jobs:
             echo "dry=${{ inputs.dry_run }}" >> "$GITHUB_OUTPUT"
             echo "version=$xml" >> "$GITHUB_OUTPUT"
           fi
+          # registry names are lowercase, the owner's name need not be
+          echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/mcp_connector" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -82,7 +84,7 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: ${{ steps.cfg.outputs.dry == 'false' }}
-          tags: ghcr.io/${{ github.repository_owner }}/mcp_connector:${{ steps.cfg.outputs.version }}
+          tags: ${{ steps.cfg.outputs.image }}:${{ steps.cfg.outputs.version }}
 
       - name: Build the store archive
         run: scripts/build_store_release.sh "${{ steps.cfg.outputs.version }}"
