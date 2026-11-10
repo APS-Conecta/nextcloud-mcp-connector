@@ -139,6 +139,12 @@ FORBIDDEN: dict[str, str] = {
     "/acl": "no tool may share a Deck board or change who may edit, share or manage it",
     "/permissions": "no tool may change the permissions of a Talk conversation or of one "
     "of its participants",
+    "/moderators": "no tool may promote a participant to moderator or demote one",
+    '}/public"': "no tool may open a conversation to guests through a public link or close "
+    "it again; the closing quote keeps the needle off lib/public in prose",
+    "/listable": "no tool may let every user find and join a conversation",
+    "/mention-permissions": "no tool may set who may mention everyone in a conversation; "
+    "'/permissions' misses it, because a '-' precedes that segment",
     '}share"': "no tool may share a calendar or an address book: that is a POST of an "
     "oc:share body on the collection",
     "publish-calendar": "no tool may publish a calendar under a public link",
@@ -225,6 +231,22 @@ SHARE_AND_PERMISSION_ROUTES: dict[str, tuple[str, str]] = {
     "/permissions": (
         "nextcloud/clients/talk.py",
         '    url = ocs.ocs_url(creds, f"{ROOM_PREFIX}/{room}/attendees/permissions")',
+    ),
+    "/moderators": (
+        "nextcloud/clients/talk.py",
+        '    await ocs.ocs_post(client, creds, f"{ROOM_PREFIX}/{room}/moderators", b)',
+    ),
+    '}/public"': (
+        "nextcloud/clients/talk.py",
+        '    await ocs.ocs_post(client, creds, f"{ROOM_PREFIX}/{room}/public", b)',
+    ),
+    "/listable": (
+        "nextcloud/clients/talk.py",
+        '    url = ocs.ocs_url(creds, f"{ROOM_PREFIX}/{room}/listable")',
+    ),
+    "/mention-permissions": (
+        "nextcloud/clients/talk.py",
+        '    url = ocs.ocs_url(creds, f"{ROOM_PREFIX}/{room}/mention-permissions")',
     ),
     '}share"': (
         "nextcloud/clients/caldav.py",
@@ -543,7 +565,7 @@ def _unconditional_puts(relative: str, tree: ast.AST) -> tuple[list[str], int]:
 
     Flags ``.put(...)`` calls and ``.request("PUT", ...)`` calls without a usable
     ``If-Match``/``If-None-Match`` header. The rule deliberately ignores the URL: a PUT
-    through a variable or a helper is held exactly like a spelled-out one, and the two
+    through a variable or a helper is held exactly like a spelled-out one, and the three
     PUTs that legitimately run unconditioned are pinned by name in
     ``UNCONDITIONAL_PUTS``.
     """
@@ -947,7 +969,10 @@ def test_each_share_or_permission_needle_trips_on_its_call_and_leaves_the_real_m
     """Counter proof per needle: no tool shares an object or changes who may use it.
 
     A Deck board is shared and its rights are set on ``/acl``, the rights in a Talk
-    conversation on ``/permissions``, and a calendar or address book is shared or published
+    conversation on ``/permissions``; a Talk participant is promoted or demoted on
+    ``/moderators``, a conversation opened to guests on ``/public``, made findable by every
+    user on ``/listable``, and told who may mention everyone on ``/mention-permissions``;
+    and a calendar or address book is shared or published
     with a POST of an XML body on the collection itself. None of them needs a forbidden verb,
     so the route or the XML element is the needle, proven here in both directions.
     """

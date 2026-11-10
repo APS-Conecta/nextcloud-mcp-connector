@@ -40,7 +40,9 @@ FILE_READERS: dict[str, str] = {
     "notes_search": (
         "Notes are files and a note id is a fileid, so a hit names a file (tools/notes.py:71)."
     ),
-    "notes_read": "Answers one note by its id, which is a fileid (tools/notes.py:159-210).",
+    "notes_read": (
+        "Answers one note by its id, which is a fileid (tools/notes.py:159-193, :226-251)."
+    ),
     "unified_search": (
         "The files, comments, notes, systemtags and Findling providers carry files "
         "(tools/search.py:93-189)."
@@ -89,7 +91,7 @@ FILE_WRITERS: dict[str, str] = {
 UNAFFECTED: dict[str, str] = {
     "calendar_list_events": (
         "Answers id, uid, summary, start, end, all_day, calendar and location only; ATTACH and "
-        "DESCRIPTION are never parsed (tools/calendar.py:440-455, clients/caldav.py:391-406)."
+        "DESCRIPTION are never parsed (tools/calendar.py:542-557, clients/caldav.py:454-469)."
     ),
     "calendar_create_event": (
         "Answers the echo of its own arguments plus a read-back of the same fields and takes "
@@ -97,7 +99,7 @@ UNAFFECTED: dict[str, str] = {
     ),
     "deck_browse": (
         "Answers id, title, stack, url and duedate only; description and attachments of a card "
-        "never leave the tool (tools/deck.py:183-190)."
+        "never leave the tool (tools/deck.py:243-250)."
     ),
     "deck_create_card": (
         "Answers id, title, url and duedate, and board and stack are digit ids "
