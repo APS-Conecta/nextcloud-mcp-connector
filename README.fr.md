@@ -25,7 +25,7 @@ Le modèle, c'est vous qui l'apportez, et aucun contenu ne quitte votre serveur.
 
 ## Ce qu'il sait faire
 
-- 23 outils répartis sur neuf familles d'applications : fichiers, agenda, notes, Deck,
+- 26 outils répartis sur neuf familles d'applications : fichiers, agenda, notes, Deck,
   contacts, Tables, Talk, Mail et la recherche à l'échelle du cloud
 - OAuth 2.1 conforme à la spécification d'autorisation MCP : enregistrement dynamique des
   clients, PKCE S256, jetons liés à leur audience, rotation des jetons de rafraîchissement
@@ -69,7 +69,9 @@ contrat lit les modules et échoue au premier appel destructeur,
 ## Outils
 
 **read** signifie que l'outil ne fait que lire, **create-only** signifie qu'il peut créer de
-nouveaux objets mais ne modifie ni ne supprime jamais ceux qui existent. Le tableau n'est pas
+nouveaux objets mais ne modifie ni ne supprime jamais ceux qui existent, **update** signifie
+qu'il modifie les champs nommés d'un objet existant que l'utilisateur peut éditer, sans jamais
+le supprimer. Le tableau n'est pas
 maintenu à la main : un test de contrat lit le registre en cours d'exécution et échoue dès
 qu'un nom ou un niveau diverge.
 
@@ -82,11 +84,14 @@ qu'un nom ou un niveau diverge.
 | `files_upload` | create-only | Un fichier texte ou binaire en blocs Base64 ; un chemin existant est refusé, jamais écrasé |
 | `calendar_list_events` | read | Les événements d'une plage de temps explicite, avec un fuseau horaire explicite |
 | `calendar_create_event` | create-only | Un nouvel événement ; les événements existants ne sont jamais modifiés |
+| `calendar_update_event` | update | Titre, horaires, lieu ou texte d'un événement unique ; une série est refusée |
 | `notes_search` | read | Des notes par titre et contenu, via le fournisseur de recherche de notes Nextcloud |
 | `notes_read` | read | Une note |
 | `notes_create` | create-only | Une nouvelle note ; les notes existantes ne sont jamais modifiées |
+| `notes_update` | update | Le texte d'une note, seulement avec l'ETag de `notes_read` ; titre et dossier restent |
 | `deck_browse` | read | Les tableaux, piles et cartes de Deck |
 | `deck_create_card` | create-only | Une nouvelle carte dans une pile ; les cartes existantes ne sont jamais modifiées |
+| `deck_update_card` | update | Titre, description ou échéance d'une carte sur un tableau modifiable |
 | `tables_browse` | read | Tables : les tables, les colonnes d'une table ou ses lignes |
 | `tables_create_row` | create-only | Une ligne désignée par les titres de colonnes ; les lignes existantes ne sont jamais modifiées |
 | `talk_browse` | read | Les conversations Talk et l'historique de l'une d'elles ; la lecture ne laisse aucune trace |

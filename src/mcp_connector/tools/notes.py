@@ -1,4 +1,4 @@
-"""Notes tools: search, read and create (D-05).
+"""Notes tools: search, read, create and update (D-05, gestion-aio#94).
 
 The search does not use the Notes REST API, because it has no search route at all: the
 routes are index, get, create, update, undo, autotitle, destroy, category, attachment and
@@ -42,7 +42,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from .. import ids
-from ..errors import REASON_UNKNOWN_ID, ToolError
+from ..errors import REASON_PERMISSION_DENIED, REASON_UNKNOWN_ID, ToolError
 from ..nextcloud import NcClients, capabilities
 from ..nextcloud.clients import dav, ocs
 from ..nextcloud.clients import notes as notes_client
@@ -178,6 +178,55 @@ async def read(
     path check of a note excerpt rides in the one file id SEARCH of its bundle (plan
     27-10). It is only awaited where the path is needed, see :func:`_check_note_path`.
     """
+    note = await _visible_note(clients, note_id, batch)
+    stored_id = str(note.get("id", _plain_note_id(note_id)))
+    return {
+        "id": ids.encode_note(stored_id),
+        "title": str(note.get("title") or ""),
+        "content": str(note.get("content") or ""),
+        "category": str(note.get("category") or ""),
+        "modified": note.get("modified"),
+        "favorite": bool(note.get("favorite")),
+        "etag": str(note.get("etag") or ""),
+        "url": notes_client.web_url(clients.creds, stored_id),
+    }
+
+
+async def update(clients: NcClients, note_id: str, content: str, etag: str) -> dict[str, Any]:
+    """Replace the text of one note, only while its ETag still matches (gestion-aio#94).
+
+    The note goes through the guard and the sandbox of :func:`read` first, so a note
+    ``notes_read`` does not hand out cannot be written either, and it fails with the same
+    sentence. A read-only note (shared without edit rights) is refused before any write;
+    Notes itself refuses one with 403 as well. ``If-Match`` makes the write compare and
+    swap: a note that changed since it was read is answered with 412 and left alone. Only
+    the content is sent, so title and category, and with them the file name and folder,
+    stay as they are.
+    """
+    note = await _visible_note(clients, note_id)
+    raw = _plain_note_id(note_id)
+    if note.get("readonly"):
+        raise ToolError(
+            message=f"The note {raw} is read-only for this account.",
+            hint="Ask the owner of the note for edit rights in Nextcloud.",
+            reason=REASON_PERMISSION_DENIED,
+        )
+    stored = await notes_client.update_note(
+        clients.client, clients.creds, raw, content=content or "", etag=etag
+    )
+    return {
+        "id": ids.encode_note(raw),
+        "title": str(stored.get("title") or ""),
+        "modified": stored.get("modified"),
+        "etag": str(stored.get("etag") or ""),
+        "url": notes_client.web_url(clients.creds, raw),
+    }
+
+
+async def _visible_note(
+    clients: NcClients, note_id: str, batch: NoteBatch | None = None
+) -> dict[str, Any]:
+    """The note behind ``note_id`` as Notes stored it, or the refusal :func:`read` owes."""
     await _ready(clients)
     raw = _plain_note_id(note_id)
 
@@ -199,18 +248,7 @@ async def read(
         raise _note_not_found(raw)
     if withhold.needs_paths(scope):
         await _check_note_path(clients, scope, raw, batch)
-
-    note = fetched
-    stored_id = str(note.get("id", raw))
-    return {
-        "id": ids.encode_note(stored_id),
-        "title": str(note.get("title") or ""),
-        "content": str(note.get("content") or ""),
-        "category": str(note.get("category") or ""),
-        "modified": note.get("modified"),
-        "favorite": bool(note.get("favorite")),
-        "url": notes_client.web_url(clients.creds, stored_id),
-    }
+    return fetched
 
 
 async def create(

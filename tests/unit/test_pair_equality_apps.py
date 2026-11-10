@@ -54,6 +54,7 @@ COVERED = {
     ("notes_read", "note"),
     ("fetch", "note"),
     ("notes_create", "category"),
+    ("notes_update", "note"),
     ("talk_browse", "messages"),
     ("talk_send", "token"),
     ("fetch", "message"),
@@ -199,6 +200,8 @@ def note_world(status: int | None = None) -> World:
 NOTE_READERS = {
     "notes_read": lambda note_id: {"note_id": note_id},
     "fetch": lambda note_id: {"id": note_id},
+    # The update goes through the guard of notes_read before it could write (#94).
+    "notes_update": lambda note_id: {"note_id": note_id, "content": "neu", "etag": "e"},
 }
 
 
@@ -215,6 +218,14 @@ async def note_pair(tool: str, mode: str, world: World) -> tuple[Side, Side]:
 @pytest.mark.parametrize("mode", GUARD_MODES)
 async def test_notes_read_answers_a_tagged_note_like_an_invented_id(mode: str) -> None:
     tagged, unknown = await note_pair("notes_read", mode, note_world())
+
+    assert_note_pair(tagged, unknown, mode)
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("mode", GUARD_MODES)
+async def test_notes_update_answers_a_tagged_note_like_an_invented_id(mode: str) -> None:
+    tagged, unknown = await note_pair("notes_update", mode, note_world())
 
     assert_note_pair(tagged, unknown, mode)
 

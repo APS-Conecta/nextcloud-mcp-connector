@@ -423,6 +423,7 @@ async def test_read_untagged_at_root_is_unchanged(clients: NcClients) -> None:
         "category": "Offen",
         "modified": 1789584914,
         "favorite": False,
+        "etag": "",
         "url": f"{BASE}/index.php/apps/notes/note/933",
     }
     assert route.call_count == 1

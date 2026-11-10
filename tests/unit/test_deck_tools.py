@@ -19,7 +19,7 @@ import httpx
 import pytest
 import respx
 
-from mcp_connector.errors import AppMissingError, ToolError
+from mcp_connector.errors import REASON_PERMISSION_DENIED, AppMissingError, ToolError
 from mcp_connector.nextcloud import NcClients, capabilities
 from mcp_connector.nextcloud.credentials import Credentials
 from mcp_connector.tools import deck as deck_tools
@@ -393,3 +393,106 @@ async def test_a_server_error_while_browsing_is_a_degraded_answer(clients: NcCli
 
     assert "502" in excinfo.value.message
     assert excinfo.value.hint
+
+
+# --- deck_update_card (APS-Conecta/gestion-aio#94) ------------------------------------------
+
+BOARD_URL = f"{DECK_BASE}/boards/2"
+CARD_URL = f"{CARDS_URL}/101"
+CARD_101 = {
+    "id": 101,
+    "title": "Deck-Client bauen",
+    "description": "REST v1.0 mit Pflichtheadern",
+    "stackId": 11,
+    "type": "plain",
+    "owner": {"primaryKey": "alice", "uid": "alice", "displayname": "Alice", "type": 0},
+    "order": 3,
+    "archived": False,
+    "duedate": "2026-09-01T10:00:00+00:00",
+}
+
+
+def board_with(*, edit: bool) -> dict:
+    board = fixture("deck_boards.json")[0]
+    return {**board, "permissions": {**board["permissions"], "PERMISSION_EDIT": edit}}
+
+
+@pytest.mark.anyio
+async def test_update_card_refuses_a_card_the_user_cannot_edit_and_writes_nothing(
+    clients: NcClients,
+) -> None:
+    """A board shared read-only is refused before any write leaves this server."""
+    with respx.mock(assert_all_called=False) as mock:
+        mock_capabilities(mock)
+        mock.get(BOARD_URL).mock(return_value=httpx.Response(200, json=board_with(edit=False)))
+        mock.get(CARD_URL).mock(return_value=httpx.Response(200, json=CARD_101))
+        write = mock.put(CARD_URL)
+        with pytest.raises(ToolError) as excinfo:
+            await deck_tools.update_card(clients, card_id="card:2:11:101", title="Neu")
+
+    assert write.call_count == 0
+    assert excinfo.value.reason == REASON_PERMISSION_DENIED
+    assert excinfo.value.message == "No permission to change cards on board 2 (Projekt MCP)."
+
+
+@pytest.mark.anyio
+async def test_update_card_writes_back_every_field_it_read_with_only_the_named_one_changed(
+    clients: NcClients,
+) -> None:
+    """Deck's PUT replaces the card, so a left out field would be cleared."""
+    stored = {**CARD_101, "title": "Neu"}
+    with respx.mock(assert_all_called=True) as mock:
+        mock_capabilities(mock)
+        mock.get(BOARD_URL).mock(return_value=httpx.Response(200, json=board_with(edit=True)))
+        mock.get(CARD_URL).mock(return_value=httpx.Response(200, json=CARD_101))
+        write = mock.put(CARD_URL).mock(return_value=httpx.Response(200, json=stored))
+        result = await deck_tools.update_card(clients, card_id="card:2:11:101", title=" Neu ")
+
+    assert json.loads(write.calls[0].request.content) == {
+        "title": "Neu",
+        "type": "plain",
+        "owner": "alice",
+        "description": "REST v1.0 mit Pflichtheadern",
+        "order": 3,
+        "duedate": "2026-09-01T10:00:00+00:00",
+        "startdate": None,
+        "archived": False,
+    }
+    assert result == {
+        "id": "card:2:11:101",
+        "title": "Neu",
+        "url": f"{BASE}/index.php/apps/deck/card/101",
+        "duedate": "2026-09-01T10:00:00+00:00",
+    }
+
+
+@pytest.mark.anyio
+async def test_update_card_reports_a_write_deck_itself_refuses(clients: NcClients) -> None:
+    with respx.mock(assert_all_called=True) as mock:
+        mock_capabilities(mock)
+        mock.get(BOARD_URL).mock(return_value=httpx.Response(200, json=board_with(edit=True)))
+        mock.get(CARD_URL).mock(return_value=httpx.Response(200, json=CARD_101))
+        mock.put(CARD_URL).mock(
+            return_value=httpx.Response(403, json={"status": 403, "message": "Permission denied"})
+        )
+        with pytest.raises(ToolError) as excinfo:
+            await deck_tools.update_card(clients, card_id="card:2:11:101", description="x")
+
+    assert excinfo.value.reason == REASON_PERMISSION_DENIED
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("card_id", "fields"),
+    [("card:101", {"title": "Neu"}), ("note:101", {"title": "Neu"}), ("card:2:11:101", {})],
+)
+async def test_update_card_refuses_a_short_id_or_nothing_to_change_before_any_request(
+    clients: NcClients, card_id: str, fields: dict[str, str]
+) -> None:
+    with respx.mock(assert_all_called=False) as mock:
+        mock_capabilities(mock)
+        deck_api = mock.route(url__startswith=DECK_BASE)
+        with pytest.raises(ToolError):
+            await deck_tools.update_card(clients, card_id=card_id, **fields)
+
+    assert deck_api.call_count == 0

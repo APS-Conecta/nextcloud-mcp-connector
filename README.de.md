@@ -25,7 +25,7 @@ Das Modell bringen Sie mit, und kein Inhalt verlässt Ihren Server.
 
 ## Was er kann
 
-- 23 Tools über neun App-Familien: Dateien, Kalender, Notizen, Deck, Kontakte, Tables, Talk,
+- 26 Tools über neun App-Familien: Dateien, Kalender, Notizen, Deck, Kontakte, Tables, Talk,
   Mail und die cloud-weite Suche
 - OAuth 2.1 nach der MCP-Autorisierungsspezifikation: dynamische Client-Registrierung,
   PKCE S256, zielgebundene Token, Refresh-Rotation mit Wiederverwendungserkennung und
@@ -66,7 +66,8 @@ liest die Module und wird beim ersten zerstörenden Aufruf rot,
 ## Tools
 
 **read** heißt, das Tool liest nur, **create-only** heißt, es kann neue Objekte anlegen, aber
-bestehende nie ändern oder entfernen. Die Tabelle wird nicht von Hand gepflegt: Ein
+bestehende nie ändern oder entfernen, **update** heißt, es ändert die genannten Felder eines
+bestehenden Objekts, das der Nutzer bearbeiten darf, und entfernt es nie. Die Tabelle wird nicht von Hand gepflegt: Ein
 Contract-Test liest die laufende Registry und wird rot, sobald ein Name oder eine Stufe
 abweicht.
 
@@ -79,11 +80,14 @@ abweicht.
 | `files_upload` | create-only | Eine neue Text- oder Binärdatei in Base64-Blöcken; ein vorhandener Pfad wird abgelehnt, nie überschrieben |
 | `calendar_list_events` | read | Termine in einem expliziten Zeitraum, mit expliziter Zeitzone |
 | `calendar_create_event` | create-only | Ein neuer Termin; bestehende Termine werden nie geändert |
+| `calendar_update_event` | update | Titel, Zeiten, Ort oder Text eines einzelnen Termins; eine Serie wird abgelehnt |
 | `notes_search` | read | Notizen nach Titel und Inhalt, über den Notes-Suchprovider von Nextcloud |
 | `notes_read` | read | Eine Notiz |
 | `notes_create` | create-only | Eine neue Notiz; bestehende Notizen werden nie geändert |
+| `notes_update` | update | Der Text einer Notiz, nur mit dem ETag aus `notes_read`; Titel und Ordner bleiben |
 | `deck_browse` | read | Deck-Boards, Stapel und Karten |
 | `deck_create_card` | create-only | Eine neue Karte in einem Stapel; bestehende Karten werden nie geändert |
+| `deck_update_card` | update | Titel, Beschreibung oder Fälligkeit einer Karte auf einem bearbeitbaren Board |
 | `tables_browse` | read | Tables: die Tabellen, die Spalten einer Tabelle oder ihre Zeilen |
 | `tables_create_row` | create-only | Eine Zeile über Spaltentitel; bestehende Zeilen werden nie geändert |
 | `talk_browse` | read | Talk-Gespräche und der Verlauf eines davon; Lesen hinterlässt keine Spur |

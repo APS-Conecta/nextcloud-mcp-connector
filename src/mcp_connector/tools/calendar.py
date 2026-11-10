@@ -1,4 +1,4 @@
-"""Calendar tools: reading a window of events (D-04).
+"""Calendar tools: reading a window of events, creating and updating one (D-04, #94).
 
 Three properties of this tool are contract, not implementation detail.
 
@@ -37,7 +37,7 @@ from icalendar import Event as IcsEvent
 from icalendar import Timezone as IcsTimezone
 
 from .. import ids
-from ..errors import ToolError
+from ..errors import REASON_PERMISSION_DENIED, REASON_UNKNOWN_ID, ToolError
 from ..nextcloud import NcClients
 from ..nextcloud.clients import caldav
 
@@ -285,7 +285,7 @@ async def create_event(
         begin, finish = _timed_window(start, end, zone if timezone else UTC)
 
     calendars = await caldav.discover_calendars(clients.client, clients.creds)
-    target = _pick_target(calendars, calendar)
+    target = _writable(_pick_target(calendars, calendar))
 
     object_name = f"{uuid.uuid4()}.ics"
     uid = object_name.removesuffix(".ics")
@@ -301,7 +301,7 @@ async def create_event(
 
     await caldav.put_event(clients.client, clients.creds, target.uri, object_name, ics)
 
-    confirmed = await _read_back(clients, target, object_name)
+    confirmed = await _read_back(clients, target.uri, object_name, target.display_name)
     event = confirmed or {
         "id": ids.encode_event(target.uri, object_name),
         "uid": uid,
@@ -319,10 +319,112 @@ async def create_event(
     return result
 
 
+async def update_event(
+    clients: NcClients,
+    event_id: str,
+    summary: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    location: str | None = None,
+    description: str | None = None,
+) -> dict[str, Any]:
+    """Change summary, times, place or text of one single event; everything else stays.
+
+    The object is read with its ETag, changed in place through icalendar and written back
+    with ``If-Match``, so a change made in between is refused by sabre (412) instead of
+    overwritten. A calendar shared read-only is refused before the event is read, see
+    :class:`caldav.CalendarRef`. New times keep the kind and the zone of the stored ones.
+    A recurring series is refused: one changed field of a series moves every occurrence,
+    which is a choice for the Calendar app.
+    """
+    kind, parts = ids.parse(event_id)
+    if kind != "event" or len(parts) != 2:
+        raise ToolError(
+            message=f"{event_id!r} is not an event id.",
+            hint="Use an id from calendar_list_events, e.g. event:personal:abc.ics.",
+        )
+    calendar_uri, object_name = parts
+    texts = {"SUMMARY": summary, "LOCATION": location, "DESCRIPTION": description}
+    texts = {name: value.strip() for name, value in texts.items() if value and value.strip()}
+    if (start is None) != (end is None):
+        raise ToolError(
+            message="start and end change together.",
+            hint="Give both, in the format of calendar_list_events.",
+        )
+    if not texts and start is None:
+        raise ToolError(
+            message="Nothing to change.",
+            hint="Give a summary, start and end, a location or a description.",
+        )
+
+    calendars = await caldav.discover_calendars(clients.client, clients.creds)
+    target = next((entry for entry in calendars if entry.uri == calendar_uri), None)
+    if target is None:
+        raise ToolError(
+            message=f"This account has no calendar {calendar_uri}.",
+            hint="Use an id from calendar_list_events.",
+            reason=REASON_UNKNOWN_ID,
+        )
+    _writable(target)
+
+    text, etag = await caldav.get_object(clients.client, clients.creds, calendar_uri, object_name)
+    try:
+        stored = IcsCalendar.from_ical(text)
+    except ValueError as exc:
+        raise ToolError(
+            message=f"Nextcloud returned a calendar object that could not be read ({exc}).",
+            hint="Open that event in the Nextcloud Calendar app; it may be damaged.",
+        ) from None
+    events = list(stored.walk("VEVENT"))
+    if len(events) != 1 or any(name in events[0] for name in ("RRULE", "RDATE", "RECURRENCE-ID")):
+        raise ToolError(
+            message=f"The event {object_name} is part of a recurring series.",
+            hint="Change a series in the Nextcloud Calendar app; this tool changes single events.",
+        )
+    event = events[0]
+    current = getattr(event.get("DTSTART"), "dt", None)
+    zone = (current.tzinfo or UTC) if isinstance(current, datetime) else UTC
+
+    changed: dict[str, Any] = dict(texts)
+    if start is not None and end is not None:
+        if isinstance(current, datetime):
+            changed["DTSTART"], changed["DTEND"] = _timed_window(start, end, zone)
+        else:
+            changed["DTSTART"], changed["DTEND"] = _all_day_window(start, end)
+        event.pop("DURATION", None)
+    changed["SEQUENCE"] = int(event.get("SEQUENCE", 0)) + 1
+    changed["DTSTAMP"] = datetime.now(UTC)
+    for name, value in changed.items():
+        event.pop(name, None)
+        event.add(name, value)
+    ics = stored.to_ical()
+
+    await caldav.replace_event(clients.client, clients.creds, calendar_uri, object_name, ics, etag)
+
+    name = target.display_name
+    confirmed = await _read_back(clients, calendar_uri, object_name, name)
+    sent = caldav.parse_ics(ics, calendar_uri=calendar_uri, object_name=object_name, calendar=name)
+    result = _as_output(confirmed or sent[0], zone)
+    result["updated"] = True
+    result["confirmed"] = confirmed is not None
+    return result
+
+
+def _writable(target: caldav.CalendarRef) -> caldav.CalendarRef:
+    """Refuse a calendar shared into this account without write permission."""
+    if target.read_only:
+        raise ToolError(
+            message=f"The calendar {target.display_name} is read-only for this account.",
+            hint="Ask its owner in Nextcloud for write permission, or use one of your calendars.",
+            reason=REASON_PERMISSION_DENIED,
+        )
+    return target
+
+
 async def _read_back(
-    clients: NcClients, target: caldav.CalendarRef, object_name: str
+    clients: NcClients, calendar_uri: str, object_name: str, calendar: str | None = None
 ) -> dict[str, Any] | None:
-    """Read the created object once. A failure here does not undo the write.
+    """Read the written object once. A failure here does not undo the write.
 
     Reporting an error after a successful PUT would be the worst possible answer: the model
     would create the event a second time, and this server cannot delete the first one.
@@ -331,9 +433,9 @@ async def _read_back(
         events = await caldav.get_event(
             clients.client,
             clients.creds,
-            target.uri,
+            calendar_uri,
             object_name,
-            calendar=target.display_name,
+            calendar=calendar,
         )
     except ToolError:
         return None

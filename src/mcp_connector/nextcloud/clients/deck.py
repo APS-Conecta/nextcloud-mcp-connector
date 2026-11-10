@@ -1,4 +1,4 @@
-"""Deck REST v1.0 client: boards, stacks including their cards, and one create path.
+"""Deck REST v1.0 client: boards, stacks including their cards, one create and one update.
 
 The API lives at ``/index.php/apps/deck/api/v1.0`` and it is the strictest of the JSON
 APIs this project speaks. Two headers are mandatory on **every** request, a plain GET
@@ -22,9 +22,9 @@ cheaper than a 400 and its message is better:
 * a title is trimmed, must not be empty and must not exceed 255 characters (threat T-01-67)
 * a due date must be an ISO-8601 timestamp
 
-There is deliberately no update, no delete and no board or stack write in this module. The
-server promise is that it can neither overwrite nor remove anything, and the cheapest way
-to keep it is to never write the code that could break it (threat T-01-62).
+There is deliberately no delete and no board, stack, label or assignment write in this
+module. The one update writes back the fields it read, so only the fields a caller names
+change (threat T-01-62, gestion-aio#94); nothing here can remove anything.
 """
 
 from collections.abc import Mapping
@@ -173,6 +173,51 @@ async def create_card(
         auth=creds.auth(),
     )
     return _as_dict(ocs.parse_app_json(response, what="the new card"), what="a card")
+
+
+async def update_card(
+    client: httpx.AsyncClient,
+    creds: Credentials,
+    board_id: str | int,
+    stack_id: str | int,
+    card_id: str | int,
+    current: Mapping[str, Any],
+    *,
+    title: str | None = None,
+    description: str | None = None,
+    duedate: str | None = None,
+) -> dict[str, Any]:
+    """Write one card back with the named fields changed and every other one as it was read.
+
+    Deck's ``PUT`` replaces the card: a field left out falls back to its default, an empty
+    description and no due date. So the body carries every field of ``current``, the card
+    read right before, and only the three named ones may differ. ``done`` and ``color``
+    stay out of the body, which Deck reads as unchanged. The route knows no precondition,
+    so this PUT is pinned as unconditional in the contract gate.
+    """
+    board = _path_id(board_id, "board id")
+    stack = _path_id(stack_id, "stack id")
+    card = _path_id(card_id, "card id")
+    owner = current.get("owner")
+    body: dict[str, Any] = {
+        "title": check_title(title if title is not None else str(current.get("title") or "")),
+        "type": str(current.get("type") or CARD_TYPE),
+        "owner": str(owner.get("uid") or "") if isinstance(owner, Mapping) else str(owner or ""),
+        "description": (
+            description if description is not None else str(current.get("description") or "")
+        ),
+        "order": int(current.get("order") or 0),
+        "duedate": check_duedate(duedate) if duedate else current.get("duedate"),
+        "startdate": current.get("startdate"),
+        "archived": bool(current.get("archived")),
+    }
+    response = await client.put(
+        api_url(creds, f"/boards/{board}/stacks/{stack}/cards/{card}"),
+        json=body,
+        headers=dict(DECK_HEADERS),
+        auth=creds.auth(),
+    )
+    return _as_dict(ocs.parse_app_json(response, what=f"the card {card}"), what="a card")
 
 
 def check_title(title: str) -> str:

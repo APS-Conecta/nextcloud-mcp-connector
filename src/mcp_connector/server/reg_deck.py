@@ -4,7 +4,7 @@
 the model sees the three valid values instead of guessing "card" or "lists" and paying a
 round trip for the correction (D-06, D-14).
 
-Both tools are listed unconditionally, even on an instance without the Deck app. A
+All three tools are listed unconditionally, even on an instance without the Deck app. A
 credential dependent ``tools/list`` is not cacheable, breaks the token budget gate and
 surprises clients that persist tool lists; the honest answer to a missing app is the
 sentence the tool returns (SRV-04).
@@ -17,7 +17,7 @@ from pydantic import Field
 
 from .. import deps
 from ..tools import deck as deck_tools
-from . import CREATE_ONLY, READ_ONLY, compact, graceful, mcp
+from . import CREATE_ONLY, READ_ONLY, UPDATE_EXISTING, compact, graceful, mcp
 
 
 @mcp.tool(annotations=READ_ONLY, structured_output=False)
@@ -67,6 +67,28 @@ async def deck_create_card(
             board_id=board_id,
             stack_id=stack_id,
             title=title,
+            description=description or None,
+            duedate=duedate or None,
+        )
+    )
+
+
+@mcp.tool(annotations=UPDATE_EXISTING, structured_output=False)
+@graceful
+async def deck_update_card(
+    card_id: Annotated[str, Field(description="Card id from deck_browse level=cards")],
+    title: Annotated[str, Field(description="New title")] = "",
+    description: Annotated[str, Field(description="New card text, Markdown")] = "",
+    duedate: Annotated[str, Field(description="New due date, ISO 8601")] = "",
+    ctx: Context | None = None,
+) -> str:
+    """Change title, description or due date of a card; empty fields stay unchanged."""
+    clients = deps.resolve_clients(ctx)
+    return compact(
+        await deck_tools.update_card(
+            clients,
+            card_id=card_id,
+            title=title or None,
             description=description or None,
             duedate=duedate or None,
         )

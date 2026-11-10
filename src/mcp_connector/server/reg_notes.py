@@ -1,6 +1,6 @@
 """Registration of the notes tools. The logic lives in :mod:`mcp_connector.tools.notes`.
 
-All three are listed unconditionally. ``tools/list`` stays static even on an instance
+All four are listed unconditionally. ``tools/list`` stays static even on an instance
 without the Notes app, because a credential dependent listing is not cacheable, breaks the
 token budget measurement and surprises clients that persist tool lists. The honest answer
 to a missing app is the sentence the tool returns, not a hidden tool (SRV-04).
@@ -13,7 +13,7 @@ from pydantic import Field
 
 from .. import deps
 from ..tools import notes as notes_tools
-from . import CREATE_ONLY, READ_ONLY, compact, graceful, mcp
+from . import CREATE_ONLY, READ_ONLY, UPDATE_EXISTING, compact, graceful, mcp
 
 
 @mcp.tool(annotations=READ_ONLY, structured_output=False)
@@ -52,3 +52,16 @@ async def notes_create(
     return compact(
         await notes_tools.create(clients, title=title, content=content, category=category)
     )
+
+
+@mcp.tool(annotations=UPDATE_EXISTING, structured_output=False)
+@graceful
+async def notes_update(
+    note_id: Annotated[str, Field(description="Note id from notes_search")],
+    content: Annotated[str, Field(description="Complete new note text")],
+    etag: Annotated[str, Field(description="etag from notes_read")],
+    ctx: Context | None = None,
+) -> str:
+    """Replace a note's text if its etag still matches; refused when read-only."""
+    clients = deps.resolve_clients(ctx)
+    return compact(await notes_tools.update(clients, note_id=note_id, content=content, etag=etag))

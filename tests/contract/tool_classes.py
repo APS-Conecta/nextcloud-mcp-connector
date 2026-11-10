@@ -79,6 +79,10 @@ FILE_WRITERS: dict[str, str] = {
         "Sends into a room by token, and the token of a file room is refused through one_room "
         "(tools/talk.py:820-858)."
     ),
+    "notes_update": (
+        "Replaces the content of a note file by its fileid after the guard of notes_read, "
+        "_visible_note (tools/notes.py:195-255)."
+    ),
 }
 
 # Tools whose answer cannot name a Nextcloud file; each sentence says why.
@@ -98,6 +102,14 @@ UNAFFECTED: dict[str, str] = {
     "deck_create_card": (
         "Answers id, title, url and duedate, and board and stack are digit ids "
         "(tools/deck.py:119-126, clients/deck.py:210-218)."
+    ),
+    "deck_update_card": (
+        "Answers id, title, url and duedate of the card it changed; description and "
+        "attachments never leave the tool (tools/deck.py:130-186)."
+    ),
+    "calendar_update_event": (
+        "Answers the same fields as calendar_create_event and leaves ATTACH untouched in the "
+        "object, never parsed (tools/calendar.py:322-400)."
     ),
     "contacts_search": (
         "Answers full_name, emails, phones, organization, addressbook and uid; no PHOTO, no URL "
@@ -131,6 +143,7 @@ PAIR_CASES: dict[tuple[str, str], str] = {
     ("notes_read", "note"): "apps",
     ("fetch", "note"): "apps",
     ("notes_create", "category"): "apps",
+    ("notes_update", "note"): "apps",
     ("talk_browse", "messages"): "apps",
     ("talk_send", "token"): "apps",
     ("fetch", "message"): "apps",

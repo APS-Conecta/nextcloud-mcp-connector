@@ -51,6 +51,7 @@ from mcp_connector.nextcloud.clients import systemtags as systemtags_client
 from mcp_connector.nextcloud.clients import tables as tables_client
 from mcp_connector.nextcloud.credentials import Credentials
 from mcp_connector.server import mcp
+from mcp_connector.tools import notes as notes_tools
 from mcp_connector.tools import talk as talk_tools
 from mcp_connector.tools import withhold
 
@@ -220,6 +221,8 @@ def refusal_problem(tool: str, args: dict[str, Any], mode: str, text: str) -> st
         normal: tuple[str, ...] = (talk_tools._unknown_token(str(args.get("token") or "")).message,)
     elif tool in ("files_upload", "notes_create"):
         normal = PARENT_MISSING_FRAGMENTS
+    elif tool == "notes_update":
+        normal = (notes_tools._note_not_found(str(args["note_id"]).removeprefix("note:")).message,)
     else:
         return f"no refusal is defined for {tool}"
     choices = [normal] if mode == "normal" else [normal, (withhold.EXCLUSION_UNAVAILABLE,)]

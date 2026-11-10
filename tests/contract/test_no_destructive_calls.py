@@ -500,15 +500,20 @@ def test_file_updates_keep_create_and_compare_and_swap_puts_distinct() -> None:
 #: A PUT that runs without a precondition header, pinned by file and function. The chunk
 #: protocol writes into Nextcloud's temporary upload folder and its final MOVE carries
 #: ``Overwrite: F``; the init-progress push is the ExApp talking about itself to the
-#: AppAPI control plane, never user content. A third entry here is a review event.
+#: AppAPI control plane, never user content. The Deck card update (gestion-aio#94) is the
+#: third, a review event: Deck's card route honours no ``If-Match``, so a header there would
+#: be the vacuous precondition this gate exists to refuse. The tool reads the card right
+#: before and writes every field back as read, except the ones the user named.
 UNCONDITIONAL_PUTS = {
     ("nextcloud/clients/dav.py", "put_upload_chunk"),
     ("exapp/status.py", "report_init_progress"),
+    ("nextcloud/clients/deck.py", "update_card"),
 }
 
 #: Every PUT call in the production code, counted. A new PUT that this gate somehow does
-#: not flag still changes the count, so it cannot slip in silently.
-EXPECTED_PUT_CALLS = 5
+#: not flag still changes the count, so it cannot slip in silently. Eight since the three
+#: update tools of gestion-aio#94 (notes and calendar under If-Match, Deck pinned above).
+EXPECTED_PUT_CALLS = 8
 
 
 def _usable_precondition(call: ast.Call) -> bool:

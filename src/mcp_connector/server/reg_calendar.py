@@ -12,7 +12,7 @@ from pydantic import Field
 
 from .. import deps
 from ..tools import calendar as calendar_tools
-from . import CREATE_ONLY, READ_ONLY, compact, graceful, mcp
+from . import CREATE_ONLY, READ_ONLY, UPDATE_EXISTING, compact, graceful, mcp
 
 
 @mcp.tool(annotations=READ_ONLY, structured_output=False)
@@ -83,5 +83,33 @@ async def calendar_create_event(
             description=description,
             all_day=all_day,
             timezone=timezone,
+        )
+    )
+
+
+@mcp.tool(annotations=UPDATE_EXISTING, structured_output=False)
+@graceful
+async def calendar_update_event(
+    event_id: Annotated[str, Field(description="Event id from calendar_list_events")],
+    summary: Annotated[str | None, Field(description="New title")] = None,
+    start: Annotated[
+        str | None, Field(description="New start, format of calendar_create_event")
+    ] = None,
+    end: Annotated[str | None, Field(description="New end, together with start")] = None,
+    location: Annotated[str | None, Field(description="New place")] = None,
+    description: Annotated[str | None, Field(description="New longer text")] = None,
+    ctx: Context | None = None,
+) -> str:
+    """Change fields of one single event; omitted fields stay, a series is refused."""
+    clients = deps.resolve_clients(ctx)
+    return compact(
+        await calendar_tools.update_event(
+            clients,
+            event_id=event_id,
+            summary=summary,
+            start=start,
+            end=end,
+            location=location,
+            description=description,
         )
     )
