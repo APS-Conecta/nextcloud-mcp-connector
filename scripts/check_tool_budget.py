@@ -102,14 +102,14 @@ from mcp_connector.server import mcp
 #   Budget      unchanged at 18000: 15440 + 15 percent = 17756, and the next 500 above it
 #               is 18000, so the convention lands on the number that already stands.
 #
-#   Measurement 2026-11-10, the 23 curated tools plus Estadística's 13 marked operations,
-#               which gestion-aio#93 puts on the default surface with no switch: 25017
+#   Measurement 2026-11-10, the 26 curated tools plus Estadística's 13 marked operations,
+#               which gestion-aio#93 puts on the default surface with no switch: 27053
 #               bytes. ``estadistica_api_indicadores`` measured 1435 bytes against the per
 #               tool ceiling and was cut at its source (APS-Conecta/estadistica#81): its
 #               summary, the one part of an operation the connector copies, now ends where
 #               its reading notes begin, and those moved to the operation's description.
-#   Budget      25017 + 15 percent = 28770, rounded up to the next 500 = 29000 bytes
-BUDGET_BYTES = 29_000
+#   Budget      27053 + 15 percent = 31111, rounded up to the next 500 = 31500 bytes
+BUDGET_BYTES = 31_500
 
 # The second claim, and the one that actually reports a regression. A total with headroom
 # says nothing about a single tool: today's outlier ``calendar_create_event`` sits at 1351

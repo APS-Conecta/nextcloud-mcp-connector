@@ -23,7 +23,7 @@ You bring the model, and no content leaves your server.
 ## What it does
 
 - 26 tools across nine app families: files, calendar, notes, Deck, contacts, Tables, Talk,
-  Mail and cloud wide search
+  Mail and cloud wide search, plus the APS app tools (today Estadística's 13)
 - OAuth 2.1 to the MCP authorization specification: dynamic client registration, PKCE S256,
   audience bound tokens, refresh rotation with reuse detection and immediate revocation.
   Claude.ai and ChatGPT are given one URL and never see a password or an app password

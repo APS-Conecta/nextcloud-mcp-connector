@@ -26,7 +26,7 @@ Das Modell bringen Sie mit, und kein Inhalt verlässt Ihren Server.
 ## Was er kann
 
 - 26 Tools über neun App-Familien: Dateien, Kalender, Notizen, Deck, Kontakte, Tables, Talk,
-  Mail und die cloud-weite Suche
+  Mail und die cloud-weite Suche, dazu die APS-App-Tools (heute die 13 von Estadística)
 - OAuth 2.1 nach der MCP-Autorisierungsspezifikation: dynamische Client-Registrierung,
   PKCE S256, zielgebundene Token, Refresh-Rotation mit Wiederverwendungserkennung und
   sofortigem Entzug. Claude.ai und ChatGPT bekommen eine URL und sehen nie ein Passwort
