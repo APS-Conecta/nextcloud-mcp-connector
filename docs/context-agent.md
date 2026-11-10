@@ -28,8 +28,13 @@ user from the agent, the model or a tool argument.
    The user id is the `userId` of the task Nextcloud handed to the agent. A tool list or MCP
    session built for one task is never reused for a task of another user.
 3. **No other credential.** The MCP configuration of the agent carries no `Authorization`
-   header, no app password and no token. On this path the connector never reads one, and
-   over HaRP's route a static credential would make every call run as its owner.
+   header, no app password and no token. A call signed for a user never has its
+   `Authorization` header read. A call signed with no user falls through to the connector's
+   OAuth branch, which does read `Authorization`, and the proxy forwards that header because
+   the `/mcp` route in `appinfo/info.xml` excludes only the AppAPI headers: a valid connector
+   OAuth bearer on such a call runs it as that token's owner. Carrying no credential is
+   therefore what makes a task without a user end in a 401. Over HaRP's route a static
+   credential would make every call run as its owner.
 
 ## What Nextcloud does
 
@@ -45,12 +50,12 @@ user from the agent, the model or a tool argument.
 - It verifies that signature with its own `APP_SECRET`. The user in it is the identity of
   every Nextcloud request the call makes (AppAPI impersonation), so Nextcloud's own
   permissions decide what the call reads and writes.
-- An `Authorization` header next to the signature is not read. No tool takes a user
-  parameter, and an argument the tool does not declare is dropped.
+- When the signature names a user, an `Authorization` header next to it is not read. No tool
+  takes a user parameter, and an argument the tool does not declare is dropped.
 - A call whose signature carries no user (a task without a user, or the agent's app context)
-  is refused with 401 before any MCP code runs, and nothing reaches Nextcloud. The 401
-  carries the OAuth discovery challenge because the same route serves OAuth clients; to the
-  agent it is a refusal.
+  and no valid connector OAuth bearer, which point 3 guarantees, is refused with 401 before
+  any MCP code runs, and nothing reaches Nextcloud. The 401 carries the OAuth discovery
+  challenge because the same route serves OAuth clients; to the agent it is a refusal.
 - The per account switch of the connections page applies as on every other way in.
 
 External MCP clients are unchanged: OAuth and app passwords keep using
