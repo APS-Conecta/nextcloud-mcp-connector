@@ -75,7 +75,7 @@ FILE_WRITERS: dict[str, str] = {
     ),
     "notes_create": (
         "Creates a note file in a category folder and checks folder and candidate file "
-        "(tools/notes.py:213-298)."
+        "(tools/notes.py:254-336)."
     ),
     "talk_send": (
         "Sends into a room by token, and the token of a file room is refused through one_room "
@@ -103,7 +103,7 @@ UNAFFECTED: dict[str, str] = {
     ),
     "deck_create_card": (
         "Answers id, title, url and duedate, and board and stack are digit ids "
-        "(tools/deck.py:119-126, clients/deck.py:210-218)."
+        "(tools/deck.py:120-127, clients/deck.py:255-263)."
     ),
     "deck_update_card": (
         "Answers id, title, url and duedate of the card it changed; description and "
