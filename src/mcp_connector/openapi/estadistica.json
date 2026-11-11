@@ -2821,8 +2821,8 @@
         "/ocs/v2.php/apps/estadistica/api/v1/indicadores": {
             "get": {
                 "operationId": "api-indicadores",
-                "summary": "The Metas Sanitarias of a year, month by month (a12). For each meta: this install's establishment's numerador, denominador and %, and the gaps to its meta comprometida and to the meta nacional (in points); beside them, the country's % and the peer group's, wherever the denominator is nationally computable: REM, or FONASA's inscritos when a corte serves the year and the meta's ages are whole bands. poblacion.falta_oficial marks a meta whose ages cut a band: no denominador until its denominador comprometido, which serves the local % only (docs/adr/0007). Percentages are percentages: 90 is 90 %.",
-                "description": "A Serie A month adds up to that month; a Serie P month is the latest corte up to it (June, December); a month past the data has no figure. A manual meta (VIII) is its typed cumplimiento. numerador and denominador are the meta's routes as its seed file writes them, with the REM dictionaries they cite (docs/adr/0008).\nThe local series is this install's establishment (app config, suite ADR-0009). fecha_corte_local is its own last month with a written number in each serie (YYYY-MM by fuente id; null without an establishment): a Serie A month past it has no local figure, while the country's and the peers' end at the fuente's fecha de corte. The peers are the register's establishments that share the chosen traits with it; aviso says why there are none when some were asked for.\nponytail: the list is the one route. A route per meta joins when a consumer needs one alone.",
+                "summary": "The Metas Sanitarias of a year, month by month (a12). For each meta: the establishment's numerador, denominador and %, and the gaps to its meta comprometida and to the meta nacional (in points); beside them, the country's % and the peer group's, wherever the denominator is nationally computable: REM, or FONASA's inscritos when a corte serves the year and the meta's ages are whole bands. poblacion.falta_oficial marks a meta whose ages cut a band: no denominador until its denominador comprometido, which serves the local % only (docs/adr/0007). Percentages are percentages: 90 is 90 %.",
+                "description": "A Serie A month adds up to that month; a Serie P month is the latest corte up to it (June, December); a month past the data has no figure. A manual meta (VIII) is its typed cumplimiento. numerador and denominador are the meta's routes as its seed file writes them, with the REM dictionaries they cite (docs/adr/0008).\nThe local series is this install's establishment (app config), unless the request names another DEIS code (suite ADR-0009), whose metas read only its own commitments. fecha_corte_local is its own last month with a written number in each serie (YYYY-MM by fuente id; null without an establishment): a Serie A month past it has no local figure, while the country's and the peers' end at the fuente's fecha de corte. The peers are the register's establishments that share the chosen traits with it; aviso says why there are none when some were asked for.\nponytail: the list is the one route. A route per meta joins when a consumer needs one alone.",
                 "tags": [
                     "api"
                 ],
@@ -2853,6 +2853,16 @@
                         "schema": {
                             "type": "string",
                             "default": "tipo"
+                        }
+                    },
+                    {
+                        "name": "establecimiento",
+                        "in": "query",
+                        "description": "the six-digit DEIS code of the local series; this install's when omitted",
+                        "schema": {
+                            "type": "string",
+                            "nullable": true,
+                            "default": null
                         }
                     },
                     {
@@ -3207,7 +3217,7 @@
                         }
                     },
                     "400": {
-                        "description": "The year cannot hold metas, or a peer trait is not one — {message: the Spanish sentence}",
+                        "description": "The year cannot hold metas, or a peer trait or the DEIS code is not one — {message: the Spanish sentence}",
                         "content": {
                             "application/json": {
                                 "schema": {
