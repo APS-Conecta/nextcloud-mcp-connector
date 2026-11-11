@@ -11,6 +11,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Estadística's `estadistica_api_indicadores` takes the optional `establecimiento` (a DEIS code), from
+  Estadística's document at APS-Conecta/estadistica#82 (estadistica#76).
+
 ## [0.7.0] - 2026-11-10
 
 The first release of the APS-Conecta fork. Its image is
