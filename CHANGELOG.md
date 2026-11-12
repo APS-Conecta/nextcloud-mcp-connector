@@ -11,10 +11,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-12
+
 ### Changed
 
 - Estadística's `estadistica_api_indicadores` takes the optional `establecimiento` (a DEIS code), from
-  Estadística's document at APS-Conecta/estadistica#82 (estadistica#76).
+  Estadística's 0.4.0 document (estadistica#76).
 
 ## [0.7.0] - 2026-11-10
 
@@ -1059,7 +1061,8 @@ First release, submitted to the Nextcloud App Store.
   never sees more than that user sees in the web interface.
 - A privacy and data flow description, see [docs/privacy.md](docs/privacy.md).
 
-[Unreleased]: https://github.com/APS-Conecta/nextcloud-mcp-connector/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/APS-Conecta/nextcloud-mcp-connector/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/APS-Conecta/nextcloud-mcp-connector/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/APS-Conecta/nextcloud-mcp-connector/compare/c287958...v0.7.0
 [0.6.2]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/street1983nk/nextcloud-mcp-connector/compare/v0.6.0...v0.6.1

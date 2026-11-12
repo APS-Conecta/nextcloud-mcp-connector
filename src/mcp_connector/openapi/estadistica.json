@@ -2,7 +2,7 @@
     "openapi": "3.0.3",
     "info": {
         "title": "estadistica",
-        "version": "0.3.0",
+        "version": "0.4.0",
         "description": "Cifras REM del establecimiento junto al promedio nacional y de pares, y el avance de las Metas Sanitarias",
         "license": {
             "name": "AGPL-3.0-or-later"
