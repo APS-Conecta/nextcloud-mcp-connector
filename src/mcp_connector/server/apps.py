@@ -3,7 +3,7 @@
 Each ``<app>.json`` under ``mcp_connector/openapi`` is an APS app's ``openapi.json``, copied
 as the app ships it. The app keeps its document out of its release and out of the web
 server, so the connector carries the copy, and refreshing it is the whole step for a newly
-marked operation. ``estadistica.json`` is Estadística's at APS-Conecta/estadistica#82.
+marked operation. ``estadistica.json`` is Estadística's 0.4.0 document.
 
 No bundle and no switch: ``_load_registrations`` calls :func:`register` on every start, so
 the tools are part of the default surface and of its byte budget.
